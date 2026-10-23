@@ -3,6 +3,13 @@ export interface Turn { question: string; answer: string; topic: string; answere
 export interface Feedback {
   source: 'ai' | 'practice'; score: number | null; summary: string;
   strengths: string[]; improvements: string[]; nextSteps: string[];
+  rubric?: { version: string; type: string; scale: string; anchors: string[]; criteria: { id: string; label: string; guidance: string }[] };
+  answers?: { questionIndex: number; criteria: CriterionRating[] }[];
+  generation?: { provider: string; model: string; promptVersion: string; inputHash: string; inputTokens: number | null; outputTokens: number | null; latencyMs: number };
+}
+export interface CriterionRating {
+  criterionId: string; label: string; score: number | null; status: 'rated' | 'insufficient_evidence';
+  rationale: string; improvement: string | null; evidence: { quote: string; start: number; end: number } | null;
 }
 export interface Interview {
   _id: string; userId: string; role: string; type: 'Technical' | 'Behavioral' | 'HR';

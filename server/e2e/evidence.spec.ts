@@ -1,0 +1,33 @@
+import { test, expect } from '@playwright/test';
+
+test('evidence scorecard highlights exact answer text, explains missing evidence and works on mobile', async ({ page }) => {
+  await page.goto('/register');
+  await page.getByLabel('Full name').fill('Evidence Reader');
+  await page.getByLabel('Email address').fill(`evidence-${Date.now()}@example.test`);
+  await page.getByLabel('Password').fill('browser-test-password');
+  await page.getByRole('button', { name: 'Create account', exact: true }).click();
+  await expect(page).toHaveURL(/dashboard/);
+  const response = await page.request.post('/__test/seed-evidence');
+  expect(response.status()).toBe(200);
+  const { id } = await response.json();
+  await page.goto(`/interview/${id}/results`);
+  await expect(page.getByRole('heading', { name: 'Evidence-based scorecard' })).toBeVisible();
+  await expect(page.getByText('Not scored', { exact: true })).toBeVisible();
+  await expect(page.getByText('Insufficient evidence', { exact: true })).toHaveCount(8);
+  const show = page.getByRole('button', { name: 'Show evidence for Correctness', exact: true }).first();
+  await show.click();
+  await expect(show).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.review-answer mark')).toHaveText('Arrays allow indexed access.');
+  await expect(page.locator('.review-answer').first()).toContainText('<script>alert("untrusted")</script>');
+  await expect(page.locator('.review-answer script')).toHaveCount(0);
+  await show.click();
+  await expect(page.locator('.review-answer mark')).toHaveCount(0);
+  await page.getByText('How the rubric works · Technical', { exact: true }).click();
+  await expect(page.getByText(/Version 2026-10-24.v1/)).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await show.click();
+  await expect(page.locator('.review-answer mark')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath('evidence-mobile.png'), fullPage: true });
+  await page.locator('.criterion-card').first().screenshot({ path: test.info().outputPath('criterion-mobile.png') });
+});

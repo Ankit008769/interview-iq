@@ -7,6 +7,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,7 +27,8 @@ jobs:
         working-directory: server
       - run: npm test
         working-directory: server
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps --only-shell chromium
+        timeout-minutes: 15
         working-directory: server
       - run: npm run test:e2e
         working-directory: server

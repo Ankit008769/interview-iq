@@ -131,6 +131,12 @@ exist solely in `server/e2e/fixture.ts`, which is excluded from the production b
 
 ## Implementation phases
 
+Phase A has started with a replaceable model-provider boundary and evidence-based
+scorecards. Technical, Behavioral and HR reports use versioned rubrics, 0–5 criteria,
+verified answer quotes and explicit insufficient-evidence states. Practice reports
+show the rubric for self-review without invented scores. See
+[the API-first Phase A plan and configuration](docs/PHASE_A_API_FIRST.md).
+
 Phase 0 delivers persistence/recovery, history pagination, account error handling,
 shared quotas, production configuration, 25 backend tests and 9 Chromium tests.
 Private staging runs on Google Cloud; see [staging operations](docs/GOOGLE_CLOUD_STAGING.md).

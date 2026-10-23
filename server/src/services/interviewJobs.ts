@@ -33,7 +33,7 @@ export async function processNextInterviewJob(): Promise<boolean> {
     const finished = doc.turns.length >= doc.totalQuestions;
     const result = finished
       ? { status: 'completed', completedAt: new Date(), feedback: await evaluateInterview(context) }
-      : await generateQuestion({ ...context, turnIndex: doc.turns.length }).then(q => ({ currentQuestion: q.question, currentTopic: q.topic }));
+      : await generateQuestion({ ...context, turnIndex: doc.turns.length }).then(q => ({ currentQuestion: q.question, currentTopic: q.topic, currentQuestionGeneration: q.generation }));
     await Interview.updateOne(fence, { $set: { ...result, processingState: 'ready' },
       $unset: { jobLeaseToken: 1, jobLeaseUntil: 1, jobNextAttemptAt: 1, processingError: 1 } }, { runValidators: true });
   } catch (err) {

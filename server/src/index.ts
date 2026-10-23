@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { app } from './app.js';
 import { startInterviewWorker } from './services/interviewJobs.js';
 import { quotaLimit } from './services/quotas.js';
+import { interviewMode } from './services/ai.js';
 
 const port = Number(process.env.PORT || 5000);
 if (!process.env.MONGODB_URI) throw new Error('Missing MONGODB_URI. See server/.env.example');
@@ -16,10 +17,11 @@ if (process.env.NODE_ENV === 'production') {
 quotaLimit('INTERVIEW_WRITES_PER_15_MIN', 40);
 quotaLimit('INTERVIEWS_PER_DAY', 20);
 quotaLimit('AI_CALLS_PER_DAY', 100);
+const mode = interviewMode(); // Fail before listening if the selected provider is misconfigured.
 try {
   await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10_000 });
   const stopWorker = startInterviewWorker();
-  const server = app.listen(port, () => console.log(`InterviewIQ API running on http://localhost:${port} (${process.env.OPENAI_API_KEY ? 'AI' : 'practice'} mode)`));
+  const server = app.listen(port, () => console.log(`InterviewIQ API running on http://localhost:${port} (${mode} mode)`));
   let stopping = false;
   const shutdown = async () => {
     if (stopping) return;

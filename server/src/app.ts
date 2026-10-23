@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import authRoutes from './routes/auth.js';
 import interviewRoutes from './routes/interviews.js';
 import { QuotaError } from './services/quotas.js';
+import { interviewMode } from './services/ai.js';
 
 const origin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
 
@@ -31,7 +32,7 @@ app.use((req, res, next) => {
 });
 app.get('/api/health', (_req, res) => {
   const connected = mongoose.connection.readyState === 1;
-  res.status(connected ? 200 : 503).json({ ok: connected, database: connected ? 'connected' : 'disconnected', aiMode: process.env.OPENAI_API_KEY ? 'ai' : 'practice' });
+  res.status(connected ? 200 : 503).json({ ok: connected, database: connected ? 'connected' : 'disconnected', aiMode: interviewMode() });
 });
 app.use('/api/auth', authRoutes);
 app.use('/api/interviews', interviewRoutes);

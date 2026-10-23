@@ -39,7 +39,7 @@ router.get('/dashboard', async (req, res, next) => {
           averageScore: { $avg: { $cond: [{ $eq: ['$feedback.source', 'ai'] }, '$feedback.score', null] } },
         } },
       ]),
-      Interview.find({ userId: owner }).select('role topic type status feedback createdAt totalQuestions').sort({ createdAt: -1, _id: -1 }).limit(5).lean(),
+      Interview.find({ userId: owner }).select('role topic type status feedback.score feedback.source createdAt totalQuestions').sort({ createdAt: -1, _id: -1 }).limit(5).lean(),
     ]);
     const summary = stats[0];
     res.json({ total: summary?.total ?? 0, completed: summary?.completed ?? 0,
@@ -60,7 +60,7 @@ router.get('/', async (req, res, next) => {
       } catch { res.status(400).json({ error: 'Invalid history cursor.' }); return; }
     }
     const docs = await Interview.find({ userId: userId(req), ...boundary })
-      .select('role topic type difficulty status feedback createdAt totalQuestions turns processingState')
+      .select('role topic type difficulty status feedback.score feedback.source createdAt totalQuestions turns processingState')
       .sort({ createdAt: -1, _id: -1 }).limit(query.data.limit + 1).lean();
     const page = docs.slice(0, query.data.limit);
     const last = page.at(-1);
@@ -77,7 +77,7 @@ router.post('/', aiLimit, async (req, res, next) => {
     await consumeQuota(userId(req), 'daily interview starts', quotaLimit('INTERVIEWS_PER_DAY', 20), 86400_000);
     if (input.mode === 'ai') await consumeAIQuota(userId(req));
     const first = await generateQuestion({ ...input, turnIndex: 0, history: [] });
-    const doc = await Interview.create({ userId: userId(req), ...input, status: 'in_progress', currentQuestion: first.question, currentTopic: first.topic, turns: [] });
+    const doc = await Interview.create({ userId: userId(req), ...input, status: 'in_progress', currentQuestion: first.question, currentTopic: first.topic, currentQuestionGeneration: first.generation, turns: [] });
     res.status(201).json({ interview: doc, mode: doc.mode ?? interviewMode() });
   } catch (err) { next(err); }
 });
@@ -111,7 +111,8 @@ router.post('/:id/answer', aiLimit, async (req, res, next) => {
       res.status(409).json({ error: 'Your previous answer is saved and is still being processed.' }); return;
     }
     const turn = { question: doc.currentQuestion, answer: parsed.data.answer, topic: doc.currentTopic,
-      answeredAt: new Date(), submissionId: parsed.data.submissionId, questionIndex: parsed.data.questionIndex };
+      answeredAt: new Date(), submissionId: parsed.data.submissionId, questionIndex: parsed.data.questionIndex,
+      questionGeneration: doc.currentQuestionGeneration };
     const updated = await Interview.findOneAndUpdate(
       { _id: doc._id, userId: userId(req), status: 'in_progress',
         $or: [{ processingState: 'ready' }, { processingState: { $exists: false } }],
