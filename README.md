@@ -75,28 +75,70 @@ docs                   Next stages and architecture
 | POST | `/api/interviews` | Create session and initial question |
 | GET | `/api/interviews/:id` | Read session |
 | POST | `/api/interviews/:id/answer` | Answer and move to next question or feedback |
+| POST | `/api/interviews/:id/retry` | Requeue failed processing of an already saved answer |
 
 All interview endpoints require authentication and enforce interview ownership. Submission checks prevent duplicate additions to the same question.
+
+Answer requests must include `answer`, a zero-based `questionIndex`, and a stable
+`submissionId` for that question. Retry the same payload with the same ID after a
+network failure. Replaying a saved submission returns the current interview with
+`replayed: true`; reusing an ID with different content or submitting a stale
+question returns 409. Deploy client and API updates together for this contract.
+
+New answers return **202 Accepted** after the answer and pending job are saved
+atomically. Poll `GET /api/interviews/:id` while `processingState` is `queued` or
+`processing`. `ready` means the next question or final feedback is available;
+`failed` exposes a retry action. Retry processing with `POST /api/interviews/:id/retry`
+without resending an answer. An exact answer replay returns 200 and the current
+state, including when processing is still pending.
+
+The API process runs a MongoDB-backed worker on startup. It makes up to three
+automatic attempts, backs off between provider failures, and reclaims work after
+a two-minute worker lease expires. A lease token prevents an obsolete worker from
+overwriting a newer result. Accepted answers survive API restarts; initial question
+creation still requires generation to succeed. This provides idempotent database
+effects, not exactly-once provider billing: an expired attempt can cause another
+provider call. See `docs/ANSWER_RECOVERY.md` for the state transitions and limits.
+
+## Development checks
+
+Dependencies are locked separately for client and server. Run `npm ci` in each
+directory for a reproducible installation, then `npm run build` in each directory.
+Run `npm test` in `server` for MongoDB-backed API regression tests. Tests use an
+isolated temporary database and practice mode; they need no API key or existing
+MongoDB service. The first test run downloads a MongoDB binary and requires network
+access. GitHub Actions runs both builds and these API tests.
+
+The tests cover session completion, delayed answer retries, conflicting and
+concurrent submissions, authentication/ownership, lifetime dashboard totals,
+provider failures, restart recovery, lease fencing and final-feedback recovery.
+
+For browser tests, build `client` first, then run `npx playwright install chromium`
+and `npm run test:e2e` from `server`. The test fixture serves the built client and
+an isolated database at `http://127.0.0.1:5101`. Port 5101 must be available.
+These tests cover reload/reconnection, processing retry, a lost save acknowledgement,
+the completed practice flow, and failed/successful logout. Test-only control routes
+exist solely in `server/e2e/fixture.ts`, which is excluded from the production build.
 
 ## Security and production considerations
 
 - API keys stay on the Express server. Never use `VITE_OPENAI_API_KEY`.
 - Passwords use bcrypt hashing and session tokens are held in HTTP-only cookies. JWT secret must be long and random.
 - Cookie handling uses `SameSite=Lax`; deploy frontend and API under one site (e.g. `yourdomain.com` and same-origin `/api` proxy). If deploying across distinct sites, redesign cookie/CSRF handling carefully rather than simply switching to `SameSite=None`.
-- For public production use: add integration/e2e tests, account deletion, stronger abuse prevention and request quotas, accessible UX review, monitoring, secret management and retention controls.
+- For public production use: complete account deletion, stronger abuse prevention, accessible UX review, monitoring, backup/restore and retention controls.
 - The interview evaluation is **coaching feedback**, not an objective measure of employability or a hiring decision.
 - User content is handled as untrusted data in prompts and model output is parsed through a defined schema.
 
-## Next implementation stages
+## Implementation phases
 
-1. **Week 7:** MediaRecorder audio capture, file validation, backend audio transcription and transcript corrections.
-2. **Week 8:** Spoken AI questions and playback controls.
-3. **Week 9:** Better dashboard analytics and per-topic scoring.
-4. **Week 10:** Resume upload / PDF extraction and role-specific question grounding.
-5. **Weeks 11–12:** Playwright, Vitest and Supertest coverage, CI, monitoring, deploy and accessibility improvements.
+Phase 0 delivers persistence/recovery, history pagination, account error handling,
+shared quotas, production configuration, 25 backend tests and 9 Chromium tests.
+Private staging runs on Google Cloud; see [staging operations](docs/GOOGLE_CLOUD_STAGING.md).
 
-See `docs/FLOW_AND_ROADMAP.md` for an implementation sequence and acceptance tests.
+Next phases are credible text coaching with versioned rubrics and evaluation data;
+resume/job-description grounding; voice; an isolated coding lab; adaptive learning;
+and private beta/launch readiness. Assistant planning notes remain outside this repo.
 
-## Verification caveat
-
-This source package is intended to be runnable after installing dependencies. Package installation and MongoDB runtime testing may need to be performed on your development machine if external npm access or Docker are unavailable in the environment where the starter was generated.
+See [flow and acceptance checks](docs/FLOW_AND_ROADMAP.md),
+[answer recovery](docs/ANSWER_RECOVERY.md), and
+[Phase 0 operations](docs/PHASE_ZERO_OPERATIONS.md).

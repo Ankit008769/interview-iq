@@ -4,6 +4,8 @@ export type InterviewType = 'Technical' | 'Behavioral' | 'HR';
 export type InterviewLevel = 'Beginner' | 'Intermediate' | 'Advanced';
 export type InterviewStatus = 'in_progress' | 'completed';
 export type AnswerTurn = {
+  submissionId?: string;
+  questionIndex?: number;
   question: string;
   answer: string;
   topic: string;
@@ -18,6 +20,13 @@ export type InterviewFeedback = {
   nextSteps: string[];
 };
 export interface IInterview {
+  mode?: 'ai' | 'practice';
+  processingState: 'ready' | 'queued' | 'processing' | 'failed';
+  jobAttempts: number;
+  jobLeaseToken?: string;
+  jobLeaseUntil?: Date;
+  jobNextAttemptAt?: Date;
+  processingError?: string;
   userId: mongoose.Types.ObjectId;
   role: string;
   type: InterviewType;
@@ -35,6 +44,8 @@ export interface IInterview {
 }
 
 const turnSchema = new Schema<AnswerTurn>({
+  submissionId: { type: String },
+  questionIndex: { type: Number, min: 0 },
   question: { type: String, required: true },
   answer: { type: String, required: true },
   topic: { type: String, required: true },
@@ -51,6 +62,13 @@ const feedbackSchema = new Schema<InterviewFeedback>({
 }, { _id: false });
 
 const interviewSchema = new Schema<IInterview>({
+  mode: { type: String, enum: ['ai', 'practice'] },
+  processingState: { type: String, enum: ['ready', 'queued', 'processing', 'failed'], default: 'ready' },
+  jobAttempts: { type: Number, default: 0 },
+  jobLeaseToken: { type: String, select: false },
+  jobLeaseUntil: Date,
+  jobNextAttemptAt: Date,
+  processingError: String,
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   role: { type: String, required: true },
   type: { type: String, enum: ['Technical', 'Behavioral', 'HR'], required: true },
@@ -64,6 +82,7 @@ const interviewSchema = new Schema<IInterview>({
   feedback: { type: feedbackSchema },
   completedAt: { type: Date },
 }, { timestamps: true });
-interviewSchema.index({ userId: 1, createdAt: -1 });
+interviewSchema.index({ userId: 1, createdAt: -1, _id: -1 });
+interviewSchema.index({ processingState: 1, jobNextAttemptAt: 1, jobLeaseUntil: 1 });
 
 export const Interview = mongoose.model<IInterview>('Interview', interviewSchema);

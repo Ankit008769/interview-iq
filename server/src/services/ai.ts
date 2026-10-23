@@ -58,19 +58,21 @@ const BANK: Record<string, string[]> = {
 };
 
 export type QuestionContext = {
+  mode?: 'ai' | 'practice';
   role: string; type: InterviewType; difficulty: InterviewLevel;
   topic: string; turnIndex: number; history: AnswerTurn[];
 };
 
 function client(): OpenAI | null {
-  return process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 25_000, maxRetries: 1 }) : null;
+  return process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 25_000, maxRetries: 0 }) : null;
 }
 export function interviewMode(): 'ai' | 'practice' {
   return process.env.OPENAI_API_KEY ? 'ai' : 'practice';
 }
 
 export async function generateQuestion(ctx: QuestionContext): Promise<{ question: string; topic: string }> {
-  const api = client();
+  const api = ctx.mode === 'practice' ? null : client();
+  if (ctx.mode === 'ai' && !api) throw new Error('AI configuration unavailable.');
   if (!api) {
     const key = ctx.type === 'Technical' ? (BANK[ctx.topic] ? ctx.topic : 'General') : ctx.type === 'Behavioral' ? 'Behavioral' : 'General';
     const list = BANK[key];
@@ -89,7 +91,8 @@ export async function generateQuestion(ctx: QuestionContext): Promise<{ question
 }
 
 export async function evaluateInterview(ctx: Omit<QuestionContext, 'turnIndex'>): Promise<InterviewFeedback> {
-  const api = client();
+  const api = ctx.mode === 'practice' ? null : client();
+  if (ctx.mode === 'ai' && !api) throw new Error('AI configuration unavailable.');
   if (!api) return {
     source: 'practice', score: null,
     summary: `You completed ${ctx.history.length} practice questions. This local practice mode saves your responses but does not assess technical accuracy.`,

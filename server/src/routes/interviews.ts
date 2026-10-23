@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
-import rateLimit from 'express-rate-limit';
+import type { RequestHandler } from 'express';
 import { z } from 'zod';
 import { Interview } from '../models/Interview.js';
 import { AuthRequest, requireAuth } from '../middleware/auth.js';
-import { evaluateInterview, generateQuestion, interviewMode } from '../services/ai.js';
+import { generateQuestion, interviewMode } from '../services/ai.js';
+import { consumeAIQuota, consumeQuota, quotaLimit } from '../services/quotas.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -16,36 +17,68 @@ const makeSchema = z.object({
   topic: z.string().trim().min(2).max(100),
   totalQuestions: z.number().int().min(2).max(5),
 });
-const answerSchema = z.object({ answer: z.string().trim().min(10).max(3500) });
-const aiLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 40, standardHeaders: 'draft-7', legacyHeaders: false });
+const answerSchema = z.object({
+  answer: z.string().trim().min(10).max(3500),
+  questionIndex: z.number().int().min(0).max(4),
+  submissionId: z.string().min(1).max(100),
+});
+const aiLimit: RequestHandler = async (req, _res, next) => {
+  try { await consumeQuota(userId(req), 'interview requests', quotaLimit('INTERVIEW_WRITES_PER_15_MIN', 40), 900_000); next(); }
+  catch (err) { next(err); }
+};
 
 router.get('/mode', (_req, res) => res.json({ mode: interviewMode() }));
 router.get('/dashboard', async (req, res, next) => {
   try {
-    const docs = await Interview.find({ userId: userId(req) }).select('role topic type status feedback createdAt totalQuestions').sort({ createdAt: -1 }).limit(100).lean();
-    const scored = docs.filter(d => d.feedback?.source === 'ai' && typeof d.feedback.score === 'number');
-    res.json({
-      total: docs.length,
-      completed: docs.filter(x => x.status === 'completed').length,
-      averageScore: scored.length ? Math.round(scored.reduce((n, x) => n + (x.feedback?.score ?? 0), 0) / scored.length) : null,
-      recent: docs.slice(0, 5),
-    });
+    const owner = new mongoose.Types.ObjectId(userId(req));
+    const [stats, recent] = await Promise.all([
+      Interview.aggregate([
+        { $match: { userId: owner } },
+        { $group: { _id: null, total: { $sum: 1 },
+          completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+          averageScore: { $avg: { $cond: [{ $eq: ['$feedback.source', 'ai'] }, '$feedback.score', null] } },
+        } },
+      ]),
+      Interview.find({ userId: owner }).select('role topic type status feedback createdAt totalQuestions').sort({ createdAt: -1, _id: -1 }).limit(5).lean(),
+    ]);
+    const summary = stats[0];
+    res.json({ total: summary?.total ?? 0, completed: summary?.completed ?? 0,
+      averageScore: summary?.averageScore == null ? null : Math.round(summary.averageScore), recent });
   } catch (err) { next(err); }
 });
 router.get('/', async (req, res, next) => {
   try {
-    const docs = await Interview.find({ userId: userId(req) }).select('role topic type difficulty status feedback createdAt totalQuestions turns').sort({ createdAt: -1 }).limit(50).lean();
-    res.json({ interviews: docs.map(x => ({ ...x, answered: x.turns.length, turns: undefined })) });
+    const query = z.object({ limit: z.coerce.number().int().min(1).max(50).default(20), cursor: z.string().max(300).optional() }).safeParse(req.query);
+    if (!query.success) { res.status(400).json({ error: 'Invalid history page size or cursor.' }); return; }
+    let boundary = {};
+    if (query.data.cursor) {
+      try {
+        const cursor = z.object({ date: z.string().datetime(), id: z.string().regex(/^[a-f0-9]{24}$/) })
+          .parse(JSON.parse(Buffer.from(query.data.cursor, 'base64url').toString('utf8')));
+        const date = new Date(cursor.date);
+        boundary = { $or: [{ createdAt: { $lt: date } }, { createdAt: date, _id: { $lt: new mongoose.Types.ObjectId(cursor.id) } }] };
+      } catch { res.status(400).json({ error: 'Invalid history cursor.' }); return; }
+    }
+    const docs = await Interview.find({ userId: userId(req), ...boundary })
+      .select('role topic type difficulty status feedback createdAt totalQuestions turns processingState')
+      .sort({ createdAt: -1, _id: -1 }).limit(query.data.limit + 1).lean();
+    const page = docs.slice(0, query.data.limit);
+    const last = page.at(-1);
+    const nextCursor = docs.length > query.data.limit && last
+      ? Buffer.from(JSON.stringify({ date: last.createdAt.toISOString(), id: last._id.toString() })).toString('base64url') : null;
+    res.json({ interviews: page.map(x => ({ ...x, answered: x.turns.length, turns: undefined })), nextCursor });
   } catch (err) { next(err); }
 });
 router.post('/', aiLimit, async (req, res, next) => {
   try {
     const parsed = makeSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: 'Choose a valid role, topic, type, difficulty and number of questions.' }); return; }
-    const input = parsed.data;
+    const input = { ...parsed.data, mode: interviewMode() };
+    await consumeQuota(userId(req), 'daily interview starts', quotaLimit('INTERVIEWS_PER_DAY', 20), 86400_000);
+    if (input.mode === 'ai') await consumeAIQuota(userId(req));
     const first = await generateQuestion({ ...input, turnIndex: 0, history: [] });
     const doc = await Interview.create({ userId: userId(req), ...input, status: 'in_progress', currentQuestion: first.question, currentTopic: first.topic, turns: [] });
-    res.status(201).json({ interview: doc, mode: interviewMode() });
+    res.status(201).json({ interview: doc, mode: doc.mode ?? interviewMode() });
   } catch (err) { next(err); }
 });
 router.get('/:id', async (req, res, next) => {
@@ -53,36 +86,57 @@ router.get('/:id', async (req, res, next) => {
     if (!mongoose.isValidObjectId(req.params.id)) { res.status(404).json({ error: 'Interview not found.' }); return; }
     const doc = await Interview.findOne({ _id: req.params.id, userId: userId(req) });
     if (!doc) { res.status(404).json({ error: 'Interview not found.' }); return; }
-    res.json({ interview: doc, mode: interviewMode() });
+    res.json({ interview: doc, mode: doc.mode ?? interviewMode() });
   } catch (err) { next(err); }
 });
 router.post('/:id/answer', aiLimit, async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) { res.status(404).json({ error: 'Interview not found.' }); return; }
     const parsed = answerSchema.safeParse(req.body);
-    if (!parsed.success) { res.status(400).json({ error: 'Please write an answer between 10 and 3500 characters.' }); return; }
+    if (!parsed.success) { res.status(400).json({ error: 'Provide a valid question index, submission ID and answer between 10 and 3500 characters.' }); return; }
     const doc = await Interview.findOne({ _id: req.params.id, userId: userId(req) });
     if (!doc) { res.status(404).json({ error: 'Interview not found.' }); return; }
+    const replay = doc.turns.find(t => t.submissionId === parsed.data.submissionId);
+    if (replay) {
+      if (replay.answer !== parsed.data.answer || replay.questionIndex !== parsed.data.questionIndex) {
+        res.status(409).json({ error: 'This submission ID was used for a different answer. Reload the interview.' }); return;
+      }
+      res.json({ interview: doc, mode: doc.mode ?? interviewMode(), replayed: true }); return;
+    }
     if (doc.status !== 'in_progress') { res.status(409).json({ error: 'This interview is already complete.' }); return; }
-    const history = [...doc.turns.map(t => ({ question: t.question, answer: t.answer, topic: t.topic, answeredAt: t.answeredAt })), {
-      question: doc.currentQuestion, answer: parsed.data.answer, topic: doc.currentTopic, answeredAt: new Date(),
-    }];
-    const finished = history.length >= doc.totalQuestions;
-    const result = finished
-      ? await evaluateInterview({ role: doc.role, type: doc.type, difficulty: doc.difficulty, topic: doc.topic, history })
-      : await generateQuestion({ role: doc.role, type: doc.type, difficulty: doc.difficulty, topic: doc.topic, turnIndex: history.length, history });
-    // Atomic compare-and-update rejects duplicate submissions from retrying clients.
+    if (doc.turns.length !== parsed.data.questionIndex) {
+      res.status(409).json({ error: 'This question has already changed. Reload the interview before answering.' }); return;
+    }
+    if (doc.processingState !== 'ready') {
+      res.status(409).json({ error: 'Your previous answer is saved and is still being processed.' }); return;
+    }
+    const turn = { question: doc.currentQuestion, answer: parsed.data.answer, topic: doc.currentTopic,
+      answeredAt: new Date(), submissionId: parsed.data.submissionId, questionIndex: parsed.data.questionIndex };
     const updated = await Interview.findOneAndUpdate(
-      { _id: doc._id, userId: userId(req), status: 'in_progress', [`turns.${history.length - 1}`]: { $exists: false } },
-      { $push: { turns: history[history.length - 1] },
-        $set: finished
-          ? { status: 'completed', completedAt: new Date(), feedback: result }
-          : { currentQuestion: (result as {question: string}).question, currentTopic: (result as {topic: string}).topic },
-      },
+      { _id: doc._id, userId: userId(req), status: 'in_progress',
+        $or: [{ processingState: 'ready' }, { processingState: { $exists: false } }],
+        [`turns.${parsed.data.questionIndex}`]: { $exists: false } },
+      { $push: { turns: turn },
+        $set: { processingState: 'queued', jobAttempts: 0, jobNextAttemptAt: new Date(), mode: doc.mode ?? interviewMode() },
+        $unset: { processingError: 1, jobLeaseToken: 1, jobLeaseUntil: 1 } },
       { new: true, runValidators: true },
     );
     if (!updated) { res.status(409).json({ error: 'This answer was already submitted. Refresh the interview.' }); return; }
-    res.json({ interview: updated, mode: interviewMode() });
+    res.status(202).json({ interview: updated, mode: updated.mode ?? interviewMode() });
+  } catch (err) { next(err); }
+});
+router.post('/:id/retry', aiLimit, async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) { res.status(404).json({ error: 'Interview not found.' }); return; }
+    const doc = await Interview.findOneAndUpdate({ _id: req.params.id, userId: userId(req),
+      status: 'in_progress', processingState: 'failed' },
+    { $set: { processingState: 'queued', jobAttempts: 0, jobNextAttemptAt: new Date() },
+      $unset: { processingError: 1, jobLeaseToken: 1, jobLeaseUntil: 1 } }, { new: true });
+    if (!doc) {
+      const exists = await Interview.exists({ _id: req.params.id, userId: userId(req) });
+      res.status(exists ? 409 : 404).json({ error: exists ? 'This interview is not awaiting a retry.' : 'Interview not found.' }); return;
+    }
+    res.status(202).json({ interview: doc, mode: doc.mode ?? interviewMode() });
   } catch (err) { next(err); }
 });
 export default router;

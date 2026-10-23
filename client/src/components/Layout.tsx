@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { ArrowUpRight, BrainCircuit, History, LayoutDashboard, LogOut, PlusCircle, Sparkles, UserRound } from 'lucide-react';
 import { useAuth } from './AuthProvider';
@@ -8,13 +9,19 @@ const nav = [
 ];
 export function Layout() {
   const { user, logout } = useAuth(); const navigate = useNavigate();
-  async function onLogout() { await logout(); navigate('/login'); }
+  const [logoutError, setLogoutError] = useState('');
+  async function onLogout() {
+    setLogoutError('');
+    try { await logout(); navigate('/login'); }
+    catch { setLogoutError('Sign out failed. Please check your connection and try again.'); }
+  }
   return <div className="app-shell">
     <aside className="sidebar">
       <Link className="brand" to="/dashboard"><span className="brand-symbol"><BrainCircuit size={23}/></span><span>interview<span className="brand-accent">IQ</span><small>AI INTERVIEW COACH</small></span></Link>
       <div className="sidebar-section">WORKSPACE</div>
       <nav className="navlist">{nav.map(({to,label,Icon})=><NavLink key={to} to={to} className={({isActive})=>`navitem ${isActive ? 'active':''}`}><Icon size={18}/><span>{label}</span></NavLink>)}</nav>
       <div className="sidebar-spacer"/>
+      {logoutError && <div className="alert error" role="alert">{logoutError}</div>}
       <div className="tip-card"><span className="tip-icon"><Sparkles size={19}/></span><b>Practice with purpose</b><p>A little progress in every session adds up to real confidence.</p><Link to="/interview/new">Start a session <ArrowUpRight size={15}/></Link></div>
       <div className="side-user"><div className="avatar">{user?.name?.charAt(0)?.toUpperCase() || <UserRound size={18}/>}</div><div className="user-meta"><b>{user?.name}</b><span>{user?.email}</span></div><button className="icon-button" onClick={onLogout} title="Sign out" aria-label="Sign out"><LogOut size={17}/></button></div>
     </aside>
