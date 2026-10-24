@@ -95,7 +95,8 @@ uses no auth only inside a network-disabled container; never use it on a live ho
 
 Backup failure/freshness alert configuration is covered in MONITORING_AND_CONSENT.md.
 Independent deletion-ledger replication and isolated reconciliation are documented
-in DELETION_LEDGER.md. Infrastructure as code, cross-region DR, logical exports and automated promotion remain follow-up
+in DELETION_LEDGER.md. Terraform for the disk, snapshot policy and VM is written but not yet
+adopted (INFRASTRUCTURE_AS_CODE.md). Cross-region DR, logical exports and automated promotion remain follow-up
 work. This milestone does not make the single-VM deployment production HA.
 
 References: [Google snapshot schedules](https://docs.cloud.google.com/compute/docs/disks/scheduled-snapshots),

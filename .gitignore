@@ -20,3 +20,10 @@ agent-notes/
 # Calibration rater sheets and results stay local; only the item sets are versioned.
 calibration/ratings/
 calibration/output/
+# Terraform working files and state never belong in git (state lives in the GCS backend).
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/tfplan
+**/*.tfvars
+!**/*.tfvars.example

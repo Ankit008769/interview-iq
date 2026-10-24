@@ -32,3 +32,15 @@ jobs:
         working-directory: server
       - run: npm run test:e2e
         working-directory: server
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      # Syntax and schema only: no backend, no cloud credentials, nothing is planned or applied.
+      - run: terraform fmt -check -recursive infra/terraform
+      - run: terraform -chdir=infra/terraform/staging init -backend=false -input=false
+      - run: terraform -chdir=infra/terraform/staging validate
