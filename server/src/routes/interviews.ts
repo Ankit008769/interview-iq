@@ -83,7 +83,7 @@ router.post('/', aiLimit, async (req, res, next) => {
     const id = new mongoose.Types.ObjectId();
     const first = await generateQuestion({ ...input, usageContext: { userId: userId(req), interviewId: id.toString() }, turnIndex: 0, history: [] });
     if (!await User.exists({ _id: userId(req), deletionRequestedAt: { $exists: false } })) { res.sendStatus(401); return; }
-    const doc = await Interview.create({ _id: id, userId: userId(req), ...input, status: 'in_progress', currentQuestion: first.question, currentTopic: first.topic, currentQuestionGeneration: first.generation, turns: [] });
+    const doc = await Interview.create({ _id: id, userId: userId(req), ...input, status: 'in_progress', currentQuestion: first.question, currentTopic: first.topic, currentQuestionId: first.questionId, currentQuestionGeneration: first.generation, turns: [] });
     res.status(201).json({ interview: doc, mode: doc.mode ?? interviewMode() });
   } catch (err) { next(err); }
 });
@@ -118,7 +118,7 @@ router.post('/:id/answer', aiLimit, async (req, res, next) => {
     }
     const turn = { question: doc.currentQuestion, answer: parsed.data.answer, topic: doc.currentTopic,
       answeredAt: new Date(), submissionId: parsed.data.submissionId, questionIndex: parsed.data.questionIndex,
-      questionGeneration: doc.currentQuestionGeneration };
+      questionId: doc.currentQuestionId, questionGeneration: doc.currentQuestionGeneration };
     const updated = await Interview.findOneAndUpdate(
       { _id: doc._id, userId: userId(req), status: 'in_progress',
         $or: [{ processingState: 'ready' }, { processingState: { $exists: false } }],

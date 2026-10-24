@@ -9,6 +9,7 @@ export type InterviewStatus = 'in_progress' | 'completed';
 export type AnswerTurn = {
   submissionId?: string;
   questionIndex?: number;
+  questionId?: string;
   question: string;
   answer: string;
   topic: string;
@@ -43,6 +44,7 @@ export interface IInterview {
   status: InterviewStatus;
   currentQuestion: string;
   currentTopic: string;
+  currentQuestionId?: string;
   currentQuestionGeneration?: GenerationMetadata;
   turns: AnswerTurn[];
   feedback?: InterviewFeedback;
@@ -68,6 +70,7 @@ const rubricSchema = new Schema({ version: String, type: String, scale: String, 
 const turnSchema = new Schema<AnswerTurn>({
   submissionId: { type: String },
   questionIndex: { type: Number, min: 0 },
+  questionId: { type: String },
   question: { type: String, required: true },
   answer: { type: String, required: true },
   topic: { type: String, required: true },
@@ -104,6 +107,7 @@ const interviewSchema = new Schema<IInterview>({
   status: { type: String, enum: ['in_progress', 'completed'], default: 'in_progress' },
   currentQuestion: { type: String, required: true },
   currentTopic: { type: String, required: true },
+  currentQuestionId: { type: String },
   currentQuestionGeneration: { type: generationSchema },
   turns: { type: [turnSchema], default: [] },
   feedback: { type: feedbackSchema },
