@@ -17,3 +17,6 @@
 agent-notes/
 .DS_Store
 *.log
+# Calibration rater sheets and results stay local; only the item sets are versioned.
+calibration/ratings/
+calibration/output/

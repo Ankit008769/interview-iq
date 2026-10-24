@@ -9,7 +9,8 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "calibration": "tsx src/scripts/calibration.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^8.4.0",

@@ -103,6 +103,14 @@ creation still requires generation to succeed. This provides idempotent database
 effects, not exactly-once provider billing: an expired attempt can cause another
 provider call. See `docs/ANSWER_RECOVERY.md` for the state transitions and limits.
 
+## Evaluator calibration
+
+AI scores are labelled uncalibrated until a human panel's ratings show the AI judge
+agrees with experts. `npm run calibration` in `server` builds blind rating sheets, runs
+the AI judge on a calibration item set, builds an evidence audit sheet and produces an
+agreement report with the Phase A gates. See [calibration](docs/CALIBRATION.md) and the
+[rater guide](docs/RATER_GUIDE.md).
+
 ## Development checks
 
 Dependencies are locked separately for client and server. Run `npm ci` in each
