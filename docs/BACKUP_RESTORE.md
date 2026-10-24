@@ -1,7 +1,7 @@
 # MongoDB backup and restore runbook
 
 Verified 24 October 2026 in project `project-12b39f1f-9d49-456e-957`.
-The application remains private staging, with a single MongoDB VM.
+The application is staging with a single MongoDB VM. HTTP is public; account data requires application authentication.
 
 ## Active backups
 
@@ -72,7 +72,9 @@ uses no auth only inside a network-disabled container; never use it on a live ho
 1. Stop application writes/workers and identify the latest healthy backup and
    authoritative deletion receipts/pending deletions. Record the data-loss interval.
 2. Restore a new disk; preserve the original. Validate the isolated copy as above.
-3. Merge current `accountdeletions` receipts with those restored. Include live users
+3. Read and reconcile the independent Cloud Storage deletion ledger using
+   [DELETION_LEDGER.md](DELETION_LEDGER.md). Merge current `accountdeletions` receipts
+   with those restored. Include live users
    with `deletionRequestedAt`, even if cleanup has not run. Remove those IDs from
    users, interviews, AI usage, sessions, action tokens and owned quota buckets.
    Receipts contain only opaque IDs and timestamps; transfer them securely, never
@@ -92,8 +94,8 @@ uses no auth only inside a network-disabled container; never use it on a live ho
    needed; keep the outage/write boundary explicit to avoid divergent data.
 
 Backup failure/freshness alert configuration is covered in MONITORING_AND_CONSENT.md.
-Independent deletion-ledger replication, infrastructure
-as code, cross-region DR, logical exports and automated promotion remain follow-up
+Independent deletion-ledger replication and isolated reconciliation are documented
+in DELETION_LEDGER.md. Infrastructure as code, cross-region DR, logical exports and automated promotion remain follow-up
 work. This milestone does not make the single-VM deployment production HA.
 
 References: [Google snapshot schedules](https://docs.cloud.google.com/compute/docs/disks/scheduled-snapshots),

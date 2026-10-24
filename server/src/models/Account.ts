@@ -20,6 +20,9 @@ export const AccountToken = mongoose.model('AccountToken', tokenSchema);
 const deletionSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, required: true, unique: true },
   requestedAt: { type: Date, required: true },
+  replicatedAt: Date,
+  replicationBucket: String,
+  replicationRetryAt: Date,
   lastSweptAt: { type: Date, default: () => new Date(0), index: true },
 });
 export const AccountDeletion = mongoose.model('AccountDeletion', deletionSchema);

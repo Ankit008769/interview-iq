@@ -98,7 +98,10 @@ aggregation and mobile UI. Existing account/interview/recovery suites remain gre
 Cloud verification checks API resource acceptance, real healthy uptime samples,
 matching real snapshot events and a synthetic notification delivery drill.
 
-Remaining Phase A work includes independent deletion-ledger replication, complete
+Deletion-ledger replication failures emit sanitized ERROR events caught by the
+existing application-error policy. See [DELETION_LEDGER.md](DELETION_LEDGER.md).
+
+Remaining Phase A work includes complete
 infrastructure-as-code, live application email setup, priced usage reconciliation,
 API quality comparison, expanded coaching and evaluator calibration. This milestone
 does not add Mongo HA, PITR, automatic failover or a restore-time guarantee.

@@ -6,7 +6,8 @@ import { z } from 'zod';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { User } from '../models/User.js';
 import { Interview } from '../models/Interview.js';
-import { AuthSession, AccountToken } from '../models/Account.js';
+import { AuthSession, AccountToken, AccountDeletion } from '../models/Account.js';
+import { replicateDeletionReceipt } from '../services/deletionLedger.js';
 import { AIUsage } from '../models/AIUsage.js';
 import { accountVersionFilter, clearSession, userView } from '../services/account.js';
 import { authLimit, validPassword } from './auth.js';
@@ -107,10 +108,16 @@ router.post('/delete', authLimit, async (req, res, next) => {
     if (!parsed.success) { res.status(400).json({ error: 'Enter your password and type DELETE.' }); return; }
     const user = await User.findById((req as unknown as AuthRequest).userId).select('+passwordHash');
     if (!user || !await bcrypt.compare(parsed.data.password, user.passwordHash)) { res.status(400).json({ error: 'Password is incorrect.' }); return; }
+    const requestedAt = new Date();
     const deleted = await User.updateOne({ _id: user._id, ...accountVersionFilter(user.authVersion ?? 0), deletionRequestedAt: { $exists: false } },
-      { $set: { deletionRequestedAt: new Date() }, $inc: { authVersion: 1 } });
+      { $set: { deletionRequestedAt: requestedAt }, $inc: { authVersion: 1 } });
     if (!deleted.modifiedCount) { res.status(409).json({ error: 'Account changed. Please sign in again.' }); return; }
-    clearSession(res); res.status(202).json({ message: 'Access is revoked. Owned records will be removed by background cleanup after at least one minute. Backups expire on their retention schedule.' });
+    clearSession(res);
+    const receipt = await AccountDeletion.findOneAndUpdate({ userId: user._id }, { $setOnInsert: { requestedAt } }, { upsert: true, new: true });
+    if (!await replicateDeletionReceipt(receipt)) {
+      res.status(503).json({ error: 'Access is revoked, but the deletion safety copy is pending. Cleanup is paused and will retry automatically. You do not need to submit again.' }); return;
+    }
+    res.status(202).json({ message: 'Access is revoked. Owned records will be removed by background cleanup after at least one minute. Minimal deletion receipts are retained separately for restore safety. Backups expire on their retention schedule.' });
   } catch (err) { next(err); }
 });
 export default router;

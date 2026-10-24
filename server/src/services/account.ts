@@ -5,6 +5,7 @@ import { User } from '../models/User.js';
 import { Interview } from '../models/Interview.js';
 import { AIUsage } from '../models/AIUsage.js';
 import { QuotaBucket } from './quotas.js';
+import { replicateDeletionReceipt } from './deletionLedger.js';
 export const accountVersionFilter = (version: number) => version === 0 ? { $or: [{authVersion:0}, {authVersion:{$exists:false}}] } : {authVersion:version};
 export const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
 export const sessionCookie = () => ({ httpOnly: true, sameSite: 'lax' as const, secure: process.env.NODE_ENV === 'production', path: '/' });
@@ -24,12 +25,23 @@ export async function issueAccountToken(user: { _id: { toString(): string }; aut
 // Durable markers revoke access immediately. Receipts make cleanup retryable and
 // repeat sweeps for writes that were already in flight when deletion was requested.
 export async function processAccountDeletions(now = new Date()) {
-  const users = await User.find({ deletionRequestedAt: { $lte: new Date(now.getTime() - 60_000) } }).limit(20);
+  const users = await User.aggregate([
+    { $match: { deletionRequestedAt: { $lte: now } } },
+    { $lookup: { from: AccountDeletion.collection.name, localField: '_id', foreignField: 'userId', as: 'receipts' } },
+    { $match: { 'receipts.0': { $exists: false } } },
+    { $sort: { deletionRequestedAt: 1 } }, { $limit: 20 },
+    { $project: { _id: 1, deletionRequestedAt: 1 } },
+  ]);
   for (const user of users) {
     await AccountDeletion.updateOne({ userId: user._id }, { $setOnInsert: { requestedAt: user.deletionRequestedAt } }, { upsert: true });
   }
-  const receipts = await AccountDeletion.find({ lastSweptAt: { $lte: new Date(now.getTime() - 60_000) } }).sort({ lastSweptAt: 1 }).limit(20);
+  const receipts = await AccountDeletion.find({ lastSweptAt: { $lte: new Date(now.getTime() - 60_000) },
+    $or: [{ replicationRetryAt: { $exists: false } }, { replicationRetryAt: { $lte: now } }],
+  }).sort({ lastSweptAt: 1 }).limit(5);
   for (const receipt of receipts) {
+    if (!await replicateDeletionReceipt(receipt, now)) continue;
+    // Replicate immediately, but retain the drain window for in-flight writes.
+    if (receipt.requestedAt.getTime() > now.getTime() - 60_000) continue;
     const userId = receipt.userId;
     await Interview.deleteMany({ userId });
     await AIUsage.deleteMany({ userId });

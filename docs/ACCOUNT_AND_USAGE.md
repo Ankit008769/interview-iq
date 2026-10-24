@@ -70,7 +70,9 @@ user deletion markers from the surviving authoritative database (if available),
 apply those deletions, and purge all restored sessions/action tokens. An older
 snapshot alone cannot reveal deletion requests made after it was taken. If the
 latest deletion record is unavailable, stop promotion and reconcile outstanding
-requests with the owner. Independent deletion-ledger replication is still pending.
+requests with the owner. Independent replication now gates cleanup and successful
+production deletion acknowledgement; see [DELETION_LEDGER.md](DELETION_LEDGER.md)
+for failure handling, migration and the isolated restore reconciliation command.
 See BACKUP_RESTORE.md for snapshot retention caveats and the tested restore drill.
 
 ## Usage accounting

@@ -4,6 +4,7 @@ import { app } from './app.js';
 import { startInterviewWorker } from './services/interviewJobs.js';
 import { quotaLimit } from './services/quotas.js';
 import { interviewMode } from './services/ai.js';
+import { ledgerBucket } from './services/deletionLedger.js';
 
 const port = Number(process.env.PORT || 5000);
 if (!process.env.MONGODB_URI) throw new Error('Missing MONGODB_URI. See server/.env.example');
@@ -18,6 +19,7 @@ quotaLimit('INTERVIEW_WRITES_PER_15_MIN', 40);
 quotaLimit('INTERVIEWS_PER_DAY', 20);
 quotaLimit('AI_CALLS_PER_DAY', 100);
 const mode = interviewMode(); // Fail before listening if the selected provider is misconfigured.
+ledgerBucket(); // A production deployment must not silently omit restore protection.
 try {
   await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10_000 });
   const stopWorker = startInterviewWorker();
