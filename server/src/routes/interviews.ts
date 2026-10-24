@@ -1,4 +1,5 @@
-import { requireAIConsent } from '../services/providerConsent.js';
+import { ConsentRequiredError, requireAIConsent } from '../services/providerConsent.js';
+import { operationalEvent } from '../services/monitoring.js';
 import { Router } from 'express';
 import mongoose from 'mongoose';
 import type { RequestHandler } from 'express';
@@ -6,7 +7,7 @@ import { z } from 'zod';
 import { User } from '../models/User.js';
 import { Interview } from '../models/Interview.js';
 import { AuthRequest, requireAuth } from '../middleware/auth.js';
-import { generateQuestion, interviewMode } from '../services/ai.js';
+import { generateQuestion, interviewMode, rewriteAnswer } from '../services/ai.js';
 import { consumeAIQuota, consumeQuota, quotaLimit } from '../services/quotas.js';
 import { MAX_CHALLENGES_PER_INTERVIEW } from '../services/challenges.js';
 import { randomUUID } from 'node:crypto';
@@ -33,6 +34,7 @@ const challengeSchema = z.object({
   reason: z.string().trim().min(10).max(500),
   submissionId: z.string().min(1).max(100),
 });
+const rewriteRequestSchema = z.object({ questionIndex: z.number().int().min(0).max(4) });
 const aiLimit: RequestHandler = async (req, _res, next) => {
   try { await consumeQuota(userId(req), 'interview requests', quotaLimit('INTERVIEW_WRITES_PER_15_MIN', 40), 900_000); next(); }
   catch (err) { next(err); }
@@ -193,6 +195,40 @@ router.post('/:id/challenges', aiLimit, async (req, res, next) => {
       { new: true, runValidators: true });
     if (!updated) { res.status(409).json({ error: 'This rating already has a re-review. Reload the results.' }); return; }
     res.status(202).json({ interview: updated, mode: updated.mode ?? interviewMode() });
+  } catch (err) { next(err); }
+});
+// One grounded rewrite per answer. Generated synchronously: the answer is already saved, so a failure loses nothing.
+router.post('/:id/rewrites', aiLimit, async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) { res.status(404).json({ error: 'Interview not found.' }); return; }
+    const parsed = rewriteRequestSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: 'Choose an answer to rewrite.' }); return; }
+    const { questionIndex } = parsed.data;
+    const doc = await Interview.findOne({ _id: req.params.id, userId: userId(req) });
+    if (!doc) { res.status(404).json({ error: 'Interview not found.' }); return; }
+    if (doc.rewrites.some(r => r.questionIndex === questionIndex)) { res.json({ interview: doc, mode: doc.mode ?? interviewMode(), replayed: true }); return; }
+    const ratings = doc.status === 'completed' && doc.feedback?.source === 'ai'
+      ? doc.feedback.answers?.find(a => a.questionIndex === questionIndex)?.criteria : undefined;
+    if (!ratings || !doc.turns[questionIndex]) {
+      res.status(409).json({ error: 'A stronger version is available for AI-scored answers in completed interviews.' }); return;
+    }
+    await requireAIConsent(userId(req));
+    await consumeAIQuota(userId(req));
+    let rewrite;
+    try {
+      rewrite = await rewriteAnswer({ usageContext: { userId: userId(req), interviewId: doc.id }, role: doc.role, type: doc.type,
+        difficulty: doc.difficulty, topic: doc.topic, turn: doc.turns[questionIndex], ratings });
+    } catch (err) {
+      if (err instanceof ConsentRequiredError) throw err;
+      operationalEvent('answer_rewrite_failure', 'WARNING');
+      res.status(502).json({ error: 'A stronger version could not be built from your answer. Please try again.' }); return;
+    }
+    // A concurrent request may have saved one first; keep that one and return it.
+    const updated = await Interview.findOneAndUpdate({ _id: doc._id, userId: userId(req), 'rewrites.questionIndex': { $ne: questionIndex } },
+      { $push: { rewrites: { questionIndex, ...rewrite, createdAt: new Date() } } }, { new: true, runValidators: true })
+      ?? await Interview.findOne({ _id: doc._id, userId: userId(req) });
+    if (!updated) { res.status(404).json({ error: 'Interview not found.' }); return; }
+    res.status(201).json({ interview: updated, mode: updated.mode ?? interviewMode() });
   } catch (err) { next(err); }
 });
 export default router;

@@ -31,10 +31,17 @@ host.use(cookieParser());
 // Tokens are exposed only by this loopback test host, never by production app routes.
 host.post('/__test/enable-ai', requireAuth, (_req,res)=>{process.env.AI_PROVIDER='openai';process.env.OPENAI_API_KEY='test-only-not-real';res.sendStatus(204);});
 host.post('/__test/disable-ai', (_req,res)=>{process.env.AI_PROVIDER='practice';delete process.env.OPENAI_API_KEY;res.sendStatus(204);});
-// Loopback OpenAI-compatible stand-in: every second review finds the seeded quote and rates it 5.
+// Loopback OpenAI-compatible stand-in for the seeded evidence answer: second reviews rate the
+// seeded quote 5; rewrites restate both seeded sentences and add one bracketed prompt.
 const gateway = createServer(async (req, res) => {
-  for await (const _chunk of req) { /* drain the request body */ }
-  const value = { score: 5, quote: 'Arrays allow indexed access.', rationale: 'The answer names indexed access explicitly.', improvement: null };
+  let body = ''; for await (const chunk of req) body += chunk;
+  const input = JSON.parse(JSON.parse(body).messages[1].content);
+  const value = input.ratings !== undefined
+    ? { summary: 'Leads with the contrast between the two structures.', parts: [
+      { kind: 'answer', text: 'Arrays give direct indexed access.', quote: 'Arrays allow indexed access.' },
+      { kind: 'answer', text: 'Linked lists must be walked to reach an element.', quote: 'Linked lists require traversal.' },
+      { kind: 'addition', text: '[Add the time complexity of each operation]', quote: null }] }
+    : { score: 5, quote: 'Arrays allow indexed access.', rationale: 'The answer names indexed access explicitly.', improvement: null };
   res.setHeader('content-type', 'application/json');
   res.end(JSON.stringify({ id: 'chatcmpl_fixture', object: 'chat.completion', created: 1, model: 'fixture-judge',
     choices: [{ index: 0, message: { role: 'assistant', content: JSON.stringify(value), refusal: null }, finish_reason: 'stop' }],

@@ -1,6 +1,6 @@
 import mongoose, { Schema } from 'mongoose';
 import type { GenerationMetadata } from '../services/modelProvider.js';
-import type { AnswerEvaluation, CriterionRating } from '../services/evidence.js';
+import type { AnswerEvaluation, CriterionRating, RewritePart } from '../services/evidence.js';
 import type { rubricFor } from '../services/rubrics.js';
 
 export type InterviewType = 'Technical' | 'Behavioral' | 'HR';
@@ -44,6 +44,14 @@ export type ScoreChallenge = {
   createdAt: Date;
   resolvedAt?: Date;
 };
+export type AnswerRewrite = {
+  questionIndex: number;
+  parts: RewritePart[];
+  summary: string;
+  dropped: number;
+  generation?: GenerationMetadata;
+  createdAt: Date;
+};
 export interface IInterview {
   mode?: 'ai' | 'practice';
   processingState: 'ready' | 'queued' | 'processing' | 'failed';
@@ -66,6 +74,7 @@ export interface IInterview {
   turns: AnswerTurn[];
   feedback?: InterviewFeedback;
   challenges: ScoreChallenge[];
+  rewrites: AnswerRewrite[];
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;
@@ -94,6 +103,13 @@ const challengeSchema = new Schema<ScoreChallenge>({
     generation: generationSchema }, { _id: false }) },
   createdAt: { type: Date, default: Date.now }, resolvedAt: Date,
 }, { _id: false, id: false, toJSON: { transform: (_doc, ret: any) => { delete ret.leaseToken; return ret; } } });
+const rewriteSchema = new Schema<AnswerRewrite>({
+  questionIndex: { type: Number, min: 0, max: 4, required: true },
+  parts: [new Schema({ kind: { type: String, enum: ['answer', 'addition'], required: true }, text: { type: String, required: true },
+    quote: String, start: Number, end: Number }, { _id: false })],
+  summary: { type: String, default: '' }, dropped: { type: Number, default: 0 },
+  generation: generationSchema, createdAt: { type: Date, default: Date.now },
+}, { _id: false });
 const rubricSchema = new Schema({ version: String, type: String, scale: String, anchors: [String],
   criteria: [new Schema({ id: String, label: String, guidance: String }, { _id: false })],
 }, { _id: false });
@@ -142,6 +158,7 @@ const interviewSchema = new Schema<IInterview>({
   turns: { type: [turnSchema], default: [] },
   feedback: { type: feedbackSchema },
   challenges: { type: [challengeSchema], default: [] },
+  rewrites: { type: [rewriteSchema], default: [] },
   completedAt: { type: Date },
 }, { timestamps: true });
 interviewSchema.index({ userId: 1, createdAt: -1, _id: -1 });

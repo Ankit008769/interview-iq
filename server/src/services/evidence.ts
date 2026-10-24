@@ -48,6 +48,29 @@ export function verifyEvidence(raw: z.infer<typeof evidenceResponseSchema>, turn
   }).sort((a, b) => a.questionIndex - b.questionIndex);
 }
 
+export const rewriteResponseSchema = z.object({
+  parts: z.array(z.object({ kind: z.enum(['answer', 'addition']), text: z.string().trim().min(1).max(400), quote: z.string().nullable() })).min(1).max(12),
+  summary: z.string().trim().max(400),
+});
+export type RewritePart = { kind: 'answer'; text: string; quote: string; start: number; end: number } | { kind: 'addition'; text: string };
+
+// Keeps only rewritten sentences whose quote is found verbatim in the answer, and additions written as a
+// bracketed prompt (e.g. "[Add the result, if you have one]") rather than as invented content.
+export function verifyRewrite(raw: z.infer<typeof rewriteResponseSchema>, answer: string): { parts: RewritePart[]; summary: string; dropped: number } {
+  const parsed = rewriteResponseSchema.parse(raw);
+  const parts: RewritePart[] = [];
+  for (const part of parsed.parts) {
+    if (part.kind === 'addition') {
+      if (/^\[[^\]]+\]$/.test(part.text)) parts.push({ kind: 'addition', text: part.text });
+      continue;
+    }
+    const start = part.quote && part.quote.trim() ? answer.indexOf(part.quote) : -1;
+    if (start >= 0) parts.push({ kind: 'answer', text: part.text, quote: part.quote!, start, end: start + part.quote!.length });
+  }
+  if (!parts.some(p => p.kind === 'answer')) throw new Error('The rewrite contained no sentence grounded in the answer.');
+  return { parts, summary: parsed.summary, dropped: parsed.parts.length - parts.length };
+}
+
 export function summarizeEvidence(answers: AnswerEvaluation[]) {
   const all = answers.flatMap(a => a.criteria);
   const rated = all.filter(c => c.score !== null);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { CriterionRating, Feedback, ScoreChallenge, Turn } from '../lib/api';
+import type { AnswerRewrite, CriterionRating, Feedback, ScoreChallenge, Turn } from '../lib/api';
 
 export function RubricGuide({ rubric }: { rubric: NonNullable<Feedback['rubric']> }) {
   return <details className="card rubric-guide">
@@ -63,8 +63,32 @@ function ChallengeControl({ criterion, challenge, canChallenge, onChallenge }:
   </form>;
 }
 
-export function EvidenceReview({ turn, index, criteria, challenges = [], canChallenge = false, onChallenge }:
-  { turn: Turn; index: number; criteria: CriterionRating[]; challenges?: ScoreChallenge[]; canChallenge?: boolean; onChallenge?: ChallengeRequest }) {
+function StrongerVersion({ rewrite, onRewrite }: { rewrite?: AnswerRewrite; onRewrite?: () => Promise<void> }) {
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  if (rewrite) return <section className="rewrite-box" aria-label="Stronger version of this answer">
+    <h5>Stronger version, built from your answer</h5>
+    {rewrite.summary && <p className="rewrite-summary">{rewrite.summary}</p>}
+    <ol className="rewrite-parts">{rewrite.parts.map((part, i) => part.kind === 'answer'
+      ? <li key={i}><span>{part.text}</span><small>From your answer: “{part.quote}”</small></li>
+      : <li key={i} className="rewrite-addition"><span>Add only if true: {part.text}</span></li>)}</ol>
+    <p className="challenge-note">Each sentence is tied to words you wrote. Bracketed prompts show what is missing; never add details that are not true.</p>
+  </section>;
+  if (!onRewrite) return null;
+  return <div className="rewrite-box">
+    <button type="button" className="button secondary" disabled={sending} onClick={async () => {
+      setSending(true); setError('');
+      try { await onRewrite(); } catch (e) { setError(e instanceof Error ? e.message : 'A stronger version could not be built.'); }
+      finally { setSending(false); }
+    }}>{sending ? 'Building a stronger version…' : 'Show a stronger version of this answer'}</button>
+    <p className="challenge-note">Built only from what you wrote. Missing pieces appear as bracketed prompts, never as invented details.</p>
+    {error && <p className="alert error">{error}</p>}
+  </div>;
+}
+
+export function EvidenceReview({ turn, index, criteria, challenges = [], canChallenge = false, onChallenge, rewrite, onRewrite }:
+  { turn: Turn; index: number; criteria: CriterionRating[]; challenges?: ScoreChallenge[]; canChallenge?: boolean; onChallenge?: ChallengeRequest;
+    rewrite?: AnswerRewrite; onRewrite?: () => Promise<void> }) {
   const [selected, setSelected] = useState<string | null>(null);
   const evidence = criteria.find(c => c.criterionId === selected)?.evidence;
   const verified = evidence && turn.answer.slice(evidence.start, evidence.end) === evidence.quote;
@@ -85,5 +109,6 @@ export function EvidenceReview({ turn, index, criteria, challenges = [], canChal
       <ChallengeControl criterion={c} challenge={challenges.find(x => x.criterionId === c.criterionId)}
         canChallenge={canChallenge} onChallenge={onChallenge} />
     </section>)}</div>
+    <StrongerVersion rewrite={rewrite} onRewrite={onRewrite} />
   </article>;
 }

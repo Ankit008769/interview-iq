@@ -18,6 +18,8 @@ export interface ScoreChallenge {
   original: CriterionRating; outcome?: { decision: 'upheld' | 'revised'; rating: CriterionRating };
   createdAt: string; resolvedAt?: string;
 }
+export type RewritePart = { kind: 'answer'; text: string; quote: string; start: number; end: number } | { kind: 'addition'; text: string };
+export interface AnswerRewrite { questionIndex: number; parts: RewritePart[]; summary: string; dropped: number; createdAt: string }
 export interface Interview {
   _id: string; userId: string; role: string; type: 'Technical' | 'Behavioral' | 'HR';
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced'; topic: string;
@@ -25,6 +27,7 @@ export interface Interview {
   currentQuestion: string; currentTopic: string;
   turns: Turn[]; createdAt: string; completedAt?: string; feedback?: Feedback;
   challenges?: ScoreChallenge[];
+  rewrites?: AnswerRewrite[];
   answered?: number;
   processingState?: 'ready' | 'queued' | 'processing' | 'failed';
   processingError?: string;

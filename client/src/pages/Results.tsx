@@ -12,6 +12,8 @@ export function Results() {
   useEffect(()=>{if(!pending)return;const timer=setTimeout(()=>{api<{interview:Interview}>(`/interviews/${id}`).then(d=>setInterview(d.interview)).catch(()=>{});},2500);return()=>clearTimeout(timer);},[pending,interview,id]);
   const requestChallenge=async(questionIndex:number,criterionId:string,reason:string,submissionId:string)=>{
     const d=await api<{interview:Interview}>(`/interviews/${id}/challenges`,{method:'POST',body:JSON.stringify({questionIndex,criterionId,reason,submissionId})});setInterview(d.interview);};
+  const requestRewrite=async(questionIndex:number)=>{
+    const d=await api<{interview:Interview}>(`/interviews/${id}/rewrites`,{method:'POST',body:JSON.stringify({questionIndex})});setInterview(d.interview);};
   if(!interview)return error?<div className="alert error">{error}</div>:<LoadingScreen/>;
   if(interview.status!=='completed')return <div className="card padding-card"><h2>Interview still in progress</h2><Link to={`/interview/${id}`} className="button primary">Continue <ArrowRight size={16}/></Link></div>;
   const feedback=interview.feedback;
@@ -30,7 +32,8 @@ export function Results() {
     const evaluated=feedback?.answers?.find(a=>a.questionIndex===i);
     return evaluated ? <EvidenceReview key={i} turn={turn} index={i} criteria={evaluated.criteria}
       challenges={challenges.filter(c=>c.questionIndex===i)} canChallenge={challenges.length<3}
-      onChallenge={(criterionId,reason,submissionId)=>requestChallenge(i,criterionId,reason,submissionId)}/> : <div className="card review-turn" key={i}><span className="question-label"><BrainCircuit size={16}/> QUESTION {i+1} · {turn.topic}</span><h4>{turn.question}</h4><div className="review-answer">{turn.answer}</div></div>;
+      onChallenge={(criterionId,reason,submissionId)=>requestChallenge(i,criterionId,reason,submissionId)}
+      rewrite={interview.rewrites?.find(r=>r.questionIndex===i)} onRewrite={()=>requestRewrite(i)}/> : <div className="card review-turn" key={i}><span className="question-label"><BrainCircuit size={16}/> QUESTION {i+1} · {turn.topic}</span><h4>{turn.question}</h4><div className="review-answer">{turn.answer}</div></div>;
   })}</div>
   {feedback?.generation && <details className="card rubric-guide"><summary>How this review was generated</summary><p>Provider: {feedback.generation.provider} · Model: {feedback.generation.model} · Prompt: {feedback.generation.promptVersion}</p><p>The rubric and generation versions are saved with this report. Model updates do not rewrite past ratings. A rating you challenge can change after a second AI review; its original is kept in your interview record.</p></details>}
   </div>;
