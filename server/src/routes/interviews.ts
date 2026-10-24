@@ -8,6 +8,8 @@ import { Interview } from '../models/Interview.js';
 import { AuthRequest, requireAuth } from '../middleware/auth.js';
 import { generateQuestion, interviewMode } from '../services/ai.js';
 import { consumeAIQuota, consumeQuota, quotaLimit } from '../services/quotas.js';
+import { MAX_CHALLENGES_PER_INTERVIEW } from '../services/challenges.js';
+import { randomUUID } from 'node:crypto';
 
 const router = Router();
 router.use(requireAuth);
@@ -23,6 +25,12 @@ const makeSchema = z.object({
 const answerSchema = z.object({
   answer: z.string().trim().min(10).max(3500),
   questionIndex: z.number().int().min(0).max(4),
+  submissionId: z.string().min(1).max(100),
+});
+const challengeSchema = z.object({
+  questionIndex: z.number().int().min(0).max(4),
+  criterionId: z.string().min(1).max(40),
+  reason: z.string().trim().min(10).max(500),
   submissionId: z.string().min(1).max(100),
 });
 const aiLimit: RequestHandler = async (req, _res, next) => {
@@ -144,6 +152,47 @@ router.post('/:id/retry', aiLimit, async (req, res, next) => {
       res.status(exists ? 409 : 404).json({ error: exists ? 'This interview is not awaiting a retry.' : 'Interview not found.' }); return;
     }
     res.status(202).json({ interview: doc, mode: doc.mode ?? interviewMode() });
+  } catch (err) { next(err); }
+});
+// Ask for a second AI review of one rating. The worker does the review; a score can go up, down or stay.
+router.post('/:id/challenges', aiLimit, async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) { res.status(404).json({ error: 'Interview not found.' }); return; }
+    const parsed = challengeSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: 'Choose a rating and explain what the review missed in 10 to 500 characters.' }); return; }
+    const { questionIndex, criterionId, reason, submissionId } = parsed.data;
+    const doc = await Interview.findOne({ _id: req.params.id, userId: userId(req) });
+    if (!doc) { res.status(404).json({ error: 'Interview not found.' }); return; }
+    const replay = doc.challenges.find(c => c.submissionId === submissionId);
+    if (replay) {
+      if (replay.questionIndex !== questionIndex || replay.criterionId !== criterionId || replay.reason !== reason) {
+        res.status(409).json({ error: 'This submission ID was used for a different challenge. Reload the results.' }); return;
+      }
+      res.json({ interview: doc, mode: doc.mode ?? interviewMode(), replayed: true }); return;
+    }
+    const original = doc.status === 'completed' && doc.feedback?.source === 'ai'
+      ? doc.feedback.answers?.find(a => a.questionIndex === questionIndex)?.criteria.find(c => c.criterionId === criterionId) : undefined;
+    if (!original) { res.status(409).json({ error: 'Only AI-scored ratings in a completed interview can be challenged.' }); return; }
+    await requireAIConsent(userId(req));
+    const existing = doc.challenges.find(c => c.questionIndex === questionIndex && c.criterionId === criterionId);
+    if (existing && existing.state !== 'failed') { res.status(409).json({ error: 'This rating already has a re-review.' }); return; }
+    if (!existing && doc.challenges.length >= MAX_CHALLENGES_PER_INTERVIEW) {
+      res.status(409).json({ error: `You can challenge up to ${MAX_CHALLENGES_PER_INTERVIEW} ratings per interview.` }); return;
+    }
+    const requeue = { $set: { 'challenges.$.state': 'queued', 'challenges.$.attempts': 0, 'challenges.$.nextAttemptAt': new Date(),
+      'challenges.$.reason': reason, 'challenges.$.submissionId': submissionId }, $unset: { 'challenges.$.error': 1 } };
+    const { criterionId: id, label, score, status, rationale, improvement, evidence } = original;
+    const updated = existing
+      ? await Interview.findOneAndUpdate({ _id: doc._id, userId: userId(req), challenges: { $elemMatch: { id: existing.id, state: 'failed' } } }, requeue, { new: true })
+      // The conditions repeat the checks above atomically, so concurrent requests cannot exceed the limit or duplicate a rating.
+      : await Interview.findOneAndUpdate({ _id: doc._id, userId: userId(req), status: 'completed',
+        challenges: { $not: { $elemMatch: { questionIndex, criterionId } } }, 'challenges.submissionId': { $ne: submissionId },
+        [`challenges.${MAX_CHALLENGES_PER_INTERVIEW - 1}`]: { $exists: false } },
+      { $push: { challenges: { id: randomUUID(), submissionId, questionIndex, criterionId, reason, state: 'queued', attempts: 0,
+        nextAttemptAt: new Date(), createdAt: new Date(), original: { criterionId: id, label, score, status, rationale, improvement, evidence } } } },
+      { new: true, runValidators: true });
+    if (!updated) { res.status(409).json({ error: 'This rating already has a re-review. Reload the results.' }); return; }
+    res.status(202).json({ interview: updated, mode: updated.mode ?? interviewMode() });
   } catch (err) { next(err); }
 });
 export default router;

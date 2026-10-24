@@ -5,6 +5,7 @@ import { Interview } from '../models/Interview.js';
 import { evaluateInterview, generateQuestion } from './ai.js';
 import { consumeAIQuota, QuotaError } from './quotas.js';
 import { processAccountDeletions } from './account.js';
+import { processNextChallengeJob } from './challenges.js';
 import { User } from '../models/User.js';
 
 export const MAX_JOB_ATTEMPTS = 3;
@@ -72,7 +73,7 @@ export function startInterviewWorker() {
   let lastHeartbeat = 0;
   const tick = () => {
     running = (async () => {
-      try { await processAccountDeletions(); await processNextInterviewJob();
+      try { await processAccountDeletions(); await processNextInterviewJob(); await processNextChallengeJob();
         if (Date.now()-lastHeartbeat >= 60_000) { operationalEvent('worker_heartbeat','INFO'); lastHeartbeat=Date.now(); }
       }
       catch { operationalEvent('worker_database_error','ERROR'); }

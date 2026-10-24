@@ -1,6 +1,6 @@
 import mongoose, { Schema } from 'mongoose';
 import type { GenerationMetadata } from '../services/modelProvider.js';
-import type { AnswerEvaluation } from '../services/evidence.js';
+import type { AnswerEvaluation, CriterionRating } from '../services/evidence.js';
 import type { rubricFor } from '../services/rubrics.js';
 
 export type InterviewType = 'Technical' | 'Behavioral' | 'HR';
@@ -27,6 +27,23 @@ export type InterviewFeedback = {
   answers?: AnswerEvaluation[];
   generation?: GenerationMetadata;
 };
+export type ScoreChallenge = {
+  id: string;
+  submissionId: string;
+  questionIndex: number;
+  criterionId: string;
+  reason: string;
+  state: 'queued' | 'processing' | 'resolved' | 'failed';
+  attempts: number;
+  leaseToken?: string;
+  leaseUntil?: Date;
+  nextAttemptAt?: Date;
+  error?: string;
+  original: CriterionRating;
+  outcome?: { decision: 'upheld' | 'revised'; rating: CriterionRating; generation?: GenerationMetadata };
+  createdAt: Date;
+  resolvedAt?: Date;
+};
 export interface IInterview {
   mode?: 'ai' | 'practice';
   processingState: 'ready' | 'queued' | 'processing' | 'failed';
@@ -48,6 +65,7 @@ export interface IInterview {
   currentQuestionGeneration?: GenerationMetadata;
   turns: AnswerTurn[];
   feedback?: InterviewFeedback;
+  challenges: ScoreChallenge[];
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;
@@ -63,7 +81,19 @@ const criterionSchema = new Schema({
   status: { type: String, enum: ['rated', 'insufficient_evidence'], required: true },
   rationale: String, improvement: { type: String, default: null },
   evidence: { type: new Schema({ quote: String, start: Number, end: Number }, { _id: false }), default: null },
+  revisedBy: { type: String },
 }, { _id: false });
+const challengeSchema = new Schema<ScoreChallenge>({
+  id: { type: String, required: true }, submissionId: { type: String, required: true },
+  questionIndex: { type: Number, min: 0, max: 4, required: true }, criterionId: { type: String, required: true },
+  reason: { type: String, required: true },
+  state: { type: String, enum: ['queued', 'processing', 'resolved', 'failed'], required: true },
+  attempts: { type: Number, default: 0 }, leaseToken: String, leaseUntil: Date, nextAttemptAt: Date, error: String,
+  original: { type: criterionSchema, required: true },
+  outcome: { type: new Schema({ decision: { type: String, enum: ['upheld', 'revised'] }, rating: criterionSchema,
+    generation: generationSchema }, { _id: false }) },
+  createdAt: { type: Date, default: Date.now }, resolvedAt: Date,
+}, { _id: false, id: false, toJSON: { transform: (_doc, ret: any) => { delete ret.leaseToken; return ret; } } });
 const rubricSchema = new Schema({ version: String, type: String, scale: String, anchors: [String],
   criteria: [new Schema({ id: String, label: String, guidance: String }, { _id: false })],
 }, { _id: false });
@@ -111,9 +141,11 @@ const interviewSchema = new Schema<IInterview>({
   currentQuestionGeneration: { type: generationSchema },
   turns: { type: [turnSchema], default: [] },
   feedback: { type: feedbackSchema },
+  challenges: { type: [challengeSchema], default: [] },
   completedAt: { type: Date },
 }, { timestamps: true });
 interviewSchema.index({ userId: 1, createdAt: -1, _id: -1 });
 interviewSchema.index({ processingState: 1, jobNextAttemptAt: 1, jobLeaseUntil: 1 });
+interviewSchema.index({ 'challenges.state': 1, 'challenges.nextAttemptAt': 1 });
 
 export const Interview = mongoose.model<IInterview>('Interview', interviewSchema);

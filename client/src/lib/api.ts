@@ -10,6 +10,13 @@ export interface Feedback {
 export interface CriterionRating {
   criterionId: string; label: string; score: number | null; status: 'rated' | 'insufficient_evidence';
   rationale: string; improvement: string | null; evidence: { quote: string; start: number; end: number } | null;
+  revisedBy?: string;
+}
+export interface ScoreChallenge {
+  id: string; submissionId: string; questionIndex: number; criterionId: string; reason: string;
+  state: 'queued' | 'processing' | 'resolved' | 'failed'; attempts: number; error?: string;
+  original: CriterionRating; outcome?: { decision: 'upheld' | 'revised'; rating: CriterionRating };
+  createdAt: string; resolvedAt?: string;
 }
 export interface Interview {
   _id: string; userId: string; role: string; type: 'Technical' | 'Behavioral' | 'HR';
@@ -17,6 +24,7 @@ export interface Interview {
   totalQuestions: number; status: 'in_progress' | 'completed';
   currentQuestion: string; currentTopic: string;
   turns: Turn[]; createdAt: string; completedAt?: string; feedback?: Feedback;
+  challenges?: ScoreChallenge[];
   answered?: number;
   processingState?: 'ready' | 'queued' | 'processing' | 'failed';
   processingError?: string;

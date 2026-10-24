@@ -12,6 +12,8 @@ import { Interview } from '../src/models/Interview.js';
 import { startInterviewWorker } from '../src/services/interviewJobs.js';
 import { rubricFor } from '../src/services/rubrics.js';
 import { verifyEvidence, summarizeEvidence } from '../src/services/evidence.js';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 process.env.JWT_SECRET = 'browser-test-only-secret-longer-than-thirty-two-characters';
 process.env.CLIENT_ORIGIN = 'http://127.0.0.1:5101';
 process.env.NODE_ENV = 'test';
@@ -29,6 +31,21 @@ host.use(cookieParser());
 // Tokens are exposed only by this loopback test host, never by production app routes.
 host.post('/__test/enable-ai', requireAuth, (_req,res)=>{process.env.AI_PROVIDER='openai';process.env.OPENAI_API_KEY='test-only-not-real';res.sendStatus(204);});
 host.post('/__test/disable-ai', (_req,res)=>{process.env.AI_PROVIDER='practice';delete process.env.OPENAI_API_KEY;res.sendStatus(204);});
+// Loopback OpenAI-compatible stand-in: every second review finds the seeded quote and rates it 5.
+const gateway = createServer(async (req, res) => {
+  for await (const _chunk of req) { /* drain the request body */ }
+  const value = { score: 5, quote: 'Arrays allow indexed access.', rationale: 'The answer names indexed access explicitly.', improvement: null };
+  res.setHeader('content-type', 'application/json');
+  res.end(JSON.stringify({ id: 'chatcmpl_fixture', object: 'chat.completion', created: 1, model: 'fixture-judge',
+    choices: [{ index: 0, message: { role: 'assistant', content: JSON.stringify(value), refusal: null }, finish_reason: 'stop' }],
+    usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } }));
+});
+await new Promise<void>(resolve => gateway.listen(0, '127.0.0.1', resolve));
+host.post('/__test/enable-gateway', requireAuth, (_req, res) => {
+  Object.assign(process.env, { AI_PROVIDER: 'compatible', LLM_BASE_URL: `http://127.0.0.1:${(gateway.address() as AddressInfo).port}/v1`,
+    INTERVIEWER_MODEL: 'fixture-interviewer', JUDGE_MODEL: 'fixture-judge' });
+  res.sendStatus(204);
+});
 host.post('/__test/account-links', requireAuth, async (req, res) => {
   const user = (await User.findById((req as AuthRequest).userId))!;
   res.json({ reset: await issueAccountToken(user, 'reset'), verify: await issueAccountToken(user, 'verify') });
@@ -76,6 +93,7 @@ const close = async () => {
   if (closing) return;
   closing = true;
   server.close();
+  gateway.close();
   await stopWorker?.();
   await mongoose.disconnect();
   await mongo.stop();

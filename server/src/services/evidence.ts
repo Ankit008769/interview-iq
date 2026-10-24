@@ -2,17 +2,32 @@ import { z } from 'zod';
 import type { AnswerTurn, InterviewType } from '../models/Interview.js';
 import { rubricFor } from './rubrics.js';
 
+const ratingFields = { score: z.number().int().min(0).max(5).nullable(),
+  quote: z.string().nullable(), rationale: z.string().max(600), improvement: z.string().max(400).nullable() };
 export const evidenceResponseSchema = z.object({ answers: z.array(z.object({
   questionIndex: z.number().int().min(0).max(4),
-  criteria: z.array(z.object({ criterionId: z.string(), score: z.number().int().min(0).max(5).nullable(),
-    quote: z.string().nullable(), rationale: z.string().max(600), improvement: z.string().max(400).nullable() })).min(4).max(5),
+  criteria: z.array(z.object({ criterionId: z.string(), ...ratingFields })).min(4).max(5),
 })).min(1).max(5) });
+export const ratingResponseSchema = z.object(ratingFields);
 export interface CriterionRating {
   criterionId: string; label: string; score: number | null;
   status: 'rated' | 'insufficient_evidence'; rationale: string; improvement: string | null;
   evidence: { quote: string; start: number; end: number } | null;
+  revisedBy?: string;
 }
 export interface AnswerEvaluation { questionIndex: number; criteria: CriterionRating[] }
+
+// A score needs a nonblank quote found verbatim in the same answer; anything else is unscored, not zero.
+export function verifyRating(rating: z.infer<typeof ratingResponseSchema>, answer: string, criterion: { id: string; label: string }): CriterionRating {
+  const quote = rating.quote;
+  const start = quote && quote.trim() ? answer.indexOf(quote) : -1;
+  if (rating.score === null || start < 0 || !quote) return { criterionId: criterion.id, label: criterion.label,
+    score: null, status: 'insufficient_evidence', evidence: null, improvement: null,
+    rationale: 'There is not enough verified evidence in this answer to assign this rating.' };
+  return { criterionId: criterion.id, label: criterion.label, score: rating.score, status: 'rated',
+    rationale: rating.rationale, improvement: rating.improvement,
+    evidence: { quote, start, end: start + quote.length } };
+}
 
 export function verifyEvidence(raw: z.infer<typeof evidenceResponseSchema>, turns: AnswerTurn[], type: InterviewType): AnswerEvaluation[] {
   const parsed = evidenceResponseSchema.parse(raw);
@@ -28,14 +43,7 @@ export function verifyEvidence(raw: z.infer<typeof evidenceResponseSchema>, turn
     return { questionIndex: answer.questionIndex, criteria: rubric.criteria.map(criterion => {
       const rating = answer.criteria.find(c => c.criterionId === criterion.id);
       if (!rating) throw new Error('Evaluation is missing a rubric criterion.');
-      const quote = rating.quote;
-      const start = quote && quote.trim() ? turn.answer.indexOf(quote) : -1;
-      if (rating.score === null || start < 0 || !quote) return { criterionId: criterion.id, label: criterion.label,
-        score: null, status: 'insufficient_evidence' as const, evidence: null, improvement: null,
-        rationale: 'There is not enough verified evidence in this answer to assign this rating.' };
-      return { criterionId: criterion.id, label: criterion.label, score: rating.score, status: 'rated' as const,
-        rationale: rating.rationale, improvement: rating.improvement,
-        evidence: { quote, start, end: start + quote.length } };
+      return verifyRating(rating, turn.answer, criterion);
     }) };
   }).sort((a, b) => a.questionIndex - b.questionIndex);
 }
