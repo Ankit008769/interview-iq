@@ -1,3 +1,4 @@
+import { AIUsage } from '../models/AIUsage.js';
 import OpenAI from 'openai';
 import { z } from 'zod';
 import { zodTextFormat, zodResponseFormat } from 'openai/helpers/zod';
@@ -9,6 +10,7 @@ export interface GenerationMetadata {
   inputTokens: number | null; outputTokens: number | null; latencyMs: number;
 }
 export interface StructuredRequest<T> {
+  usageContext?: { userId: string; interviewId?: string };
   slot: ModelSlot; system: string; input: unknown; schema: z.ZodType<T>;
   name: string; promptVersion: string; maxOutputTokens: number;
 }
@@ -43,31 +45,45 @@ export function configuredProvider(): ModelProvider | null {
       const serialized = JSON.stringify(request.input);
       const inputHash = createHash('sha256').update(JSON.stringify({ system: request.system, input: request.input })).digest('hex');
       const started = Date.now();
+      // Persist before calling the vendor: a crash leaves an explicit unknown attempt.
+      const attempt = request.usageContext ? await AIUsage.create({ ...request.usageContext,
+        provider: config.provider, model, slot: request.slot, promptVersion: request.promptVersion }) : null;
+      let actualModel = model;
+      let inputTokens: number | null = null;
+      let outputTokens: number | null = null;
+      let received = false;
       try {
-        let value: unknown;
-        let actualModel: string;
-        let inputTokens: number | null;
-        let outputTokens: number | null;
+        let raw: string | null | undefined;
+        let complete = false;
         if (config.provider === 'openai') {
-          const response = await client.responses.parse({ model, store: false,
+          const response = await client.responses.create({ model, store: false,
             input: [{ role: 'system', content: request.system }, { role: 'user', content: serialized }],
             text: { format: zodTextFormat(request.schema, request.name) }, max_output_tokens: request.maxOutputTokens });
-          value = response.output_parsed;
+          raw = response.output_text;
+          complete = response.status === 'completed';
           actualModel = response.model;
           inputTokens = response.usage?.input_tokens ?? null;
           outputTokens = response.usage?.output_tokens ?? null;
         } else {
-          const response = await client.chat.completions.parse({ model,
+          const response = await client.chat.completions.create({ model,
             messages: [{ role: 'system', content: request.system }, { role: 'user', content: serialized }],
             response_format: zodResponseFormat(request.schema, request.name), max_tokens: request.maxOutputTokens });
-          value = response.choices[0]?.message.parsed;
+          raw = response.choices[0]?.message.content;
+          complete = response.choices[0]?.finish_reason === 'stop' && !response.choices[0]?.message.refusal;
           actualModel = response.model;
           inputTokens = response.usage?.prompt_tokens ?? null;
           outputTokens = response.usage?.completion_tokens ?? null;
         }
-        return { value: request.schema.parse(value), metadata: { provider: config.provider, model: actualModel,
+        received = true;
+        if (!complete || !raw) throw new Error('Incomplete response');
+        const value = request.schema.parse(JSON.parse(raw));
+        if (attempt) await AIUsage.updateOne({ _id: attempt._id }, { $set: { status: 'succeeded', model: actualModel,
+          inputTokens, outputTokens, latencyMs: Date.now() - started } });
+        return { value, metadata: { provider: config.provider, model: actualModel,
           promptVersion: request.promptVersion, inputHash, inputTokens, outputTokens, latencyMs: Date.now() - started } };
       } catch {
+        if (attempt) await AIUsage.updateOne({ _id: attempt._id }, { $set: { status: 'failed', model: actualModel,
+          inputTokens, outputTokens, latencyMs: Date.now() - started, failure: received ? 'invalid_output' : 'provider_error' } });
         // Provider errors may contain credentials, transcripts or upstream response bodies.
         throw new Error('The AI provider did not return a valid response. Please retry.');
       }

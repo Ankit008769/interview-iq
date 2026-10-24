@@ -1,5 +1,7 @@
 // Test-only host: isolated MongoDB, loopback binding, no production credentials.
 import express from 'express';
+import { User } from '../src/models/User.js';
+import { issueAccountToken } from '../src/services/account.js';
 import { fileURLToPath } from 'node:url';
 import cookieParser from 'cookie-parser';
 import { requireAuth, type AuthRequest } from '../src/middleware/auth.js';
@@ -24,6 +26,11 @@ await mongoose.connect(mongo.getUri());
 let stopWorker: (() => Promise<void>) | undefined = startInterviewWorker();
 const host = express();
 host.use(cookieParser());
+// Tokens are exposed only by this loopback test host, never by production app routes.
+host.post('/__test/account-links', requireAuth, async (req, res) => {
+  const user = (await User.findById((req as AuthRequest).userId))!;
+  res.json({ reset: await issueAccountToken(user, 'reset'), verify: await issueAccountToken(user, 'verify') });
+});
 host.post('/__test/seed-evidence', requireAuth, async (req, res) => {
   const turns = [0, 1].map(i => ({ question: `Explain indexed access ${i + 1}.`,
     answer: '🙂 Arrays allow indexed access. <script>alert("untrusted")</script> Linked lists require traversal.',

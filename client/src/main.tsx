@@ -9,12 +9,14 @@ import { Setup } from './pages/Setup';
 import { InterviewRoom } from './pages/Interview';
 import { Results } from './pages/Results';
 import { History } from './pages/History';
+import { Account, AccountRecovery } from './pages/Account';
 import './style.css';
 function Protected(){const{user,loading,error}=useAuth();const location=useLocation();if(loading)return <LoadingScreen/>;if(error)return <AccountLoadError/>;return user?<Layout/>:<Navigate to="/login" state={{from:location.pathname}} replace/>}
 function PublicAuth({register=false}:{register?:boolean}){const{user,loading,error}=useAuth();if(loading)return <LoadingScreen/>;if(error)return <AccountLoadError/>;return user?<Navigate to="/dashboard" replace/>:<AuthPage register={register}/>}
 function App(){return <AuthProvider><BrowserRouter><Routes>
+  <Route path="/account/recovery" element={<AccountRecovery/>}/><Route path="/account/verify" element={<AccountRecovery verify/>}/>
   <Route path="/login" element={<PublicAuth/>}/><Route path="/register" element={<PublicAuth register/>}/>
-  <Route element={<Protected/>}><Route path="/dashboard" element={<Dashboard/>}/><Route path="/interview/new" element={<Setup/>}/><Route path="/interview/:id" element={<InterviewRoom/>}/><Route path="/interview/:id/results" element={<Results/>}/><Route path="/history" element={<History/>}/></Route>
+  <Route element={<Protected/>}><Route path="/account" element={<Account/>}/><Route path="/dashboard" element={<Dashboard/>}/><Route path="/interview/new" element={<Setup/>}/><Route path="/interview/:id" element={<InterviewRoom/>}/><Route path="/interview/:id/results" element={<Results/>}/><Route path="/history" element={<History/>}/></Route>
   <Route path="*" element={<Navigate to="/dashboard" replace/>}/>
 </Routes></BrowserRouter></AuthProvider>}
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);

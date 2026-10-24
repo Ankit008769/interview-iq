@@ -1,3 +1,4 @@
+import { AIUsage } from '../src/models/AIUsage.js';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -51,6 +52,10 @@ it('persists provider provenance and verified scorecards through the real HTTP g
   expect(saved.feedback.answers[0].criteria[1].evidence.quote).toBe(saved.turns[0].answer);
   expect(saved.feedback.score).toBe(80);
   expect(requests).toHaveLength(3);
+  const attempts = await AIUsage.find({ interviewId: id }).lean();
+  expect(attempts).toHaveLength(3);
+  expect(attempts.every(a => a.status === 'succeeded' && a.inputTokens === 50 && a.outputTokens === 60)).toBe(true);
+  expect(attempts.map(a => a.slot).sort()).toEqual(['interviewer', 'interviewer', 'judge']);
   expect(JSON.parse(requests[2].messages[1].content).turns[0].answer.length).toBeGreaterThan(2500);
   expect(requests[2].model).toBe('iq-judge');
   const history = (await owner.get('/api/interviews').expect(200)).body.interviews;

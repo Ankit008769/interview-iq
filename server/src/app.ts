@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import authRoutes from './routes/auth.js';
+import accountRoutes from './routes/account.js';
 import interviewRoutes from './routes/interviews.js';
 import { QuotaError } from './services/quotas.js';
 import { interviewMode } from './services/ai.js';
@@ -35,6 +36,7 @@ app.get('/api/health', (_req, res) => {
   res.status(connected ? 200 : 503).json({ ok: connected, database: connected ? 'connected' : 'disconnected', aiMode: interviewMode() });
 });
 app.use('/api/auth', authRoutes);
+app.use('/api/account', accountRoutes);
 app.use('/api/interviews', interviewRoutes);
 if (process.env.SERVE_CLIENT === 'true') {
   const clientDist = fileURLToPath(new URL('../../client/dist/', import.meta.url));

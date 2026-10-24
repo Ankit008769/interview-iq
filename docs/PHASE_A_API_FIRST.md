@@ -31,9 +31,9 @@ change. It does not claim the full Phase A exit gate is complete.
 | A1 delivery checkpoint | Preserve remote Git history, push Phase 0, execute GitHub CI | Complete: baseline run 40016222354 passed |
 | A2 provider boundary | OpenAI + compatible adapters, independent model slots, schema validation, timeout, no hidden retries, provenance | Implemented; tested with mocked Responses and a real local HTTP gateway |
 | A4 scorecard foundation | Technical/Behavioral/HR rubric snapshots, 0–5 ratings, exact quote checks, offsets, insufficient evidence, result highlighting | Implemented; automated contract and browser checks |
-| A1 account/privacy | Revocable sessions, password recovery, verified email, export/deletion, clear provider disclosure and consent | Next; requires an email delivery setup for mail-based flows |
-| A1 operations | Backups + restore drill, monitoring, shared auth limiter, infrastructure as code | Pending; existing single Mongo VM is still staging infrastructure |
-| A2 metering + A3 API bake-off | Persist attempts and billable usage including rejected outputs; latency/cost report; assess API providers on reviewed examples | Pending; successful-output token metadata is not a billing ledger |
+| A1 account/privacy | Revocable sessions, password recovery, verified email, export/deletion, clear provider disclosure and consent | Account flows implemented/tested; live email and provider consent/disclosure remain pending |
+| A1 operations | Backups + restore drill, monitoring, shared auth limiter, infrastructure as code | Shared auth limiter and hourly snapshots/restore drill complete; monitoring and IaC pending; single VM remains staging |
+| A2 metering + A3 API bake-off | Persist attempts and billable usage including rejected outputs; latency/cost report; assess API providers on reviewed examples | Attempt ledger, failed-output token tracking and account summary implemented; cost reconciliation and reviewed bake-off pending |
 | A4 expanded coach | Challenge/re-review workflow, grounded rewrites, repeat-aware curated bank and timed rounds | Pending; do not claim human review exists yet |
 | A5 evaluator calibration | Rater guide, licensed/consented dataset, double ratings, agreement and unsupported-claim audit | Pending; scores are explicitly uncalibrated |
 
@@ -102,7 +102,7 @@ errors, Responses request options, complete-answer context, HTTP gateway integra
 persisted scorecards, exact offsets including emoji, fabricated quotes, bad references,
 different rubrics, account isolation and mobile browser highlighting.
 
-The expanded suite has 40 backend tests and 10 Chromium tests. Tests pin MongoDB
+The expanded suite has 50 backend tests and 13 Chromium tests. Tests pin MongoDB
 8.2.6 and its cache path explicitly, avoiding accidental downloads when invoked
 from a different directory. This is not a compatibility claim for every MongoDB
 release; staging currently uses MongoDB 7. CI installs only Chromium's headless
@@ -114,3 +114,8 @@ previous image until this version is explicitly deployed; its practice mode need
 no vendor key. Keep credentials in environment/Secret Manager, never in Git or chat.
 
 Implementation reference: [OpenAI structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs).
+
+Account lifecycle, session migration and usage semantics: [ACCOUNT_AND_USAGE.md](ACCOUNT_AND_USAGE.md).
+Live backup policy, restore evidence and promotion checklist: [BACKUP_RESTORE.md](BACKUP_RESTORE.md).
+These complete the current account/backups/usage slice; the full Phase A quality,
+consent, monitoring and evaluator-calibration exit gate remains open.

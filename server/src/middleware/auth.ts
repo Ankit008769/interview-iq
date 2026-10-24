@@ -1,18 +1,19 @@
 import type { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import mongoose from 'mongoose';
+import { AuthSession } from '../models/Account.js';
+import { User } from '../models/User.js';
+import { tokenHash } from '../services/account.js';
 
-export type AuthRequest = Request & { userId: string };
+export type AuthRequest = Request & { userId: string; sessionId: string };
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const token = req.cookies?.iq_session as string | undefined;
-  if (!token) { res.status(401).json({ error: 'Please sign in.' }); return; }
+  if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) { res.status(401).json({ error: 'Please sign in.' }); return; }
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET!) as jwt.JwtPayload;
-    if (typeof payload.sub !== 'string' || !mongoose.isValidObjectId(payload.sub)) throw new Error('Invalid session');
-    (req as AuthRequest).userId = payload.sub;
+    const session = await AuthSession.findOne({ tokenHash: tokenHash(token), expiresAt: { $gt: new Date() } });
+    const user = session && await User.findOne({ _id: session.userId, deletionRequestedAt: { $exists: false } });
+    if (!user || session!.version !== (user.authVersion ?? 0)) { res.status(401).json({ error: 'Your session has expired. Please sign in.' }); return; }
+    (req as AuthRequest).userId = user.id;
+    (req as AuthRequest).sessionId = session!.id;
     next();
-  } catch {
-    res.status(401).json({ error: 'Your session has expired. Please sign in.' });
-  }
+  } catch (error) { next(error); }
 }

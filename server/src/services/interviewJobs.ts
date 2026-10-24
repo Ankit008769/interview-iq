@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { Interview } from '../models/Interview.js';
 import { evaluateInterview, generateQuestion } from './ai.js';
 import { consumeAIQuota, QuotaError } from './quotas.js';
+import { processAccountDeletions } from './account.js';
+import { User } from '../models/User.js';
 
 export const MAX_JOB_ATTEMPTS = 3;
 export const JOB_LEASE_MS = 120_000;
@@ -27,9 +29,12 @@ export async function processNextInterviewJob(): Promise<boolean> {
   if (!doc) return false;
   const fence = { _id: doc._id, processingState: 'processing', jobLeaseToken: token };
   try {
+    if (!await User.exists({ _id: doc.userId, deletionRequestedAt: { $exists: false } })) {
+      await Interview.deleteOne({ _id: doc._id }); return true;
+    }
     if (doc.mode === 'ai') await consumeAIQuota(doc.userId.toString());
     const context = { role: doc.role, type: doc.type, difficulty: doc.difficulty,
-      topic: doc.topic, history: doc.turns, mode: doc.mode };
+      topic: doc.topic, history: doc.turns, mode: doc.mode, usageContext: { userId: doc.userId.toString(), interviewId: doc.id } };
     const finished = doc.turns.length >= doc.totalQuestions;
     const result = finished
       ? { status: 'completed', completedAt: new Date(), feedback: await evaluateInterview(context) }
@@ -59,7 +64,7 @@ export function startInterviewWorker() {
   let running: Promise<void> = Promise.resolve();
   const tick = () => {
     running = (async () => {
-      try { await processNextInterviewJob(); }
+      try { await processAccountDeletions(); await processNextInterviewJob(); }
       catch { console.error('[Interview worker] Database operation failed; recovery will retry.'); }
       if (!stopped) timer = setTimeout(tick, 1000);
     })();

@@ -1,4 +1,4 @@
-export interface User { id: string; name: string; email: string }
+export interface User { id: string; name: string; email: string; emailVerified?: boolean }
 export interface Turn { question: string; answer: string; topic: string; answeredAt: string }
 export interface Feedback {
   source: 'ai' | 'practice'; score: number | null; summary: string;

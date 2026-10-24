@@ -5,6 +5,7 @@ import { useAuth } from './AuthProvider';
 const nav = [
   { to: '/dashboard', label: 'Overview', Icon: LayoutDashboard },
   { to: '/interview/new', label: 'New interview', Icon: PlusCircle },
+  { to: '/account', label: 'Account', Icon: UserRound },
   { to: '/history', label: 'My interviews', Icon: History },
 ];
 export function Layout() {

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import mongoose from 'mongoose';
 import type { RequestHandler } from 'express';
 import { z } from 'zod';
+import { User } from '../models/User.js';
 import { Interview } from '../models/Interview.js';
 import { AuthRequest, requireAuth } from '../middleware/auth.js';
 import { generateQuestion, interviewMode } from '../services/ai.js';
@@ -76,8 +77,10 @@ router.post('/', aiLimit, async (req, res, next) => {
     const input = { ...parsed.data, mode: interviewMode() };
     await consumeQuota(userId(req), 'daily interview starts', quotaLimit('INTERVIEWS_PER_DAY', 20), 86400_000);
     if (input.mode === 'ai') await consumeAIQuota(userId(req));
-    const first = await generateQuestion({ ...input, turnIndex: 0, history: [] });
-    const doc = await Interview.create({ userId: userId(req), ...input, status: 'in_progress', currentQuestion: first.question, currentTopic: first.topic, currentQuestionGeneration: first.generation, turns: [] });
+    const id = new mongoose.Types.ObjectId();
+    const first = await generateQuestion({ ...input, usageContext: { userId: userId(req), interviewId: id.toString() }, turnIndex: 0, history: [] });
+    if (!await User.exists({ _id: userId(req), deletionRequestedAt: { $exists: false } })) { res.sendStatus(401); return; }
+    const doc = await Interview.create({ _id: id, userId: userId(req), ...input, status: 'in_progress', currentQuestion: first.question, currentTopic: first.topic, currentQuestionGeneration: first.generation, turns: [] });
     res.status(201).json({ interview: doc, mode: doc.mode ?? interviewMode() });
   } catch (err) { next(err); }
 });

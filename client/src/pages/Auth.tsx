@@ -22,5 +22,5 @@ export function AuthPage({register = false}: {register?:boolean}) {
     <label className="field">Password<input required type="password" minLength={8} autoComplete={register?'new-password':'current-password'} placeholder="At least 8 characters" value={password} onChange={e=>setPassword(e.target.value)}/></label>
     {error&&<div className="alert error" role="alert">{error}</div>}
     <button className="button primary full" disabled={loading} type="submit">{loading?'Working...':register?'Create account':'Sign in'} <ArrowRight size={17}/></button>
-  </form><p className="auth-switch">{register?'Already have an account?':'New to InterviewIQ?'} <Link to={register?'/login':'/register'}>{register?'Sign in':'Create an account'}</Link></p><div className="privacy-note"><LockKeyhole size={15}/> Your answers are visible only in your own account.</div></div></section></div>;
+  </form>{!register && <p><Link to="/account/recovery">Forgot password?</Link></p>}<p className="auth-switch">{register?'Already have an account?':'New to InterviewIQ?'} <Link to={register?'/login':'/register'}>{register?'Sign in':'Create an account'}</Link></p><div className="privacy-note"><LockKeyhole size={15}/> Your answers are visible only in your own account.</div></div></section></div>;
 }

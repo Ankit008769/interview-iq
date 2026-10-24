@@ -33,8 +33,9 @@ The dedicated `interviewiq-build` account has the user-approved project-level
 
 `deploy/mongo-startup.sh` mounts the data disk, configures Docker's mount dependency,
 initializes/repairs the application user, and checks authenticated readiness.
-A retained disk is not a backup. Scheduled backups and a restore drill remain
-required before relying on this staging database for valuable user data.
+Hourly snapshots with a seven-day retention policy are now active. A populated
+MongoDB 7 restore drill passed on 24 October 2026. See [backup/restore evidence and
+limitations](BACKUP_RESTORE.md). Alerting and production HA remain pending.
 
 ## Operations
 
