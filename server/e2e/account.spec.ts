@@ -54,3 +54,17 @@ test('valid verification and recovery links complete the browser flows and canno
   await page.goto('/account/recovery#token='+links.reset);await page.getByLabel('New password').fill('another-password');
   await page.getByRole('button',{name:'Reset password',exact:true}).click();await expect(page.getByRole('alert')).toContainText('invalid or expired');
 });
+
+
+test('usage cost shows partial estimates and unknown attempts separately',async({page})=>{
+  await page.goto('/register');
+  await page.getByLabel('Full name').fill('Usage Tester');
+  await page.getByLabel('Email address').fill(`cost-${Date.now()}@example.test`);
+  await page.getByLabel('Password').fill('browser-test-password');
+  await page.getByRole('button',{name:'Create account',exact:true}).click();await expect(page).toHaveURL(/dashboard/);
+  await page.route('**/api/account/usage',route=>route.fulfill({json:{rows:[{_id:'failed',attempts:2,inputTokens:20,outputTokens:5,unknownUsage:1,estimatedCostUsd:0.0028,unknownCost:1}],note:'Test fixture.'}}));
+  await page.goto('/account');
+  await expect(page.getByText(/Estimated provider cost/)).toContainText('0.002800');
+  await expect(page.getByText(/Estimated provider cost/)).toContainText('Unknown-cost attempts: 1');
+  await expect(page.getByText(/Estimated provider cost/)).toContainText('not an invoice');
+});

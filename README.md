@@ -1,6 +1,6 @@
 # InterviewIQ — AI Mock Interview Coach (MERN starter)
 
-A portfolio-level MERN application for realistic, role-specific mock interviews. This repository contains a **working application scaffold** for signup, login, interview configuration, text-based question/answer sessions, feedback, dashboard and history. Audio, resume uploads and real-time voice are *planned*, not implemented in this version.
+A portfolio-level MERN application for realistic, role-specific mock interviews. This repository contains a **working application scaffold** for signup, login, interview configuration, text-based question/answer sessions, feedback, dashboard and history. Questions can be read aloud, and AI interviews accept spoken answers that are transcribed for review when a transcription model is configured ([voice answers](docs/VOICE_ANSWERS.md)). Resume uploads and real-time voice are *planned*, not implemented in this version.
 
 ## Current flow
 
@@ -79,6 +79,7 @@ docs                   Next stages and architecture
 | POST | `/api/interviews/:id/challenges` | Ask for a second AI review of one rating (up to 3 per interview; see [score challenges](docs/SCORE_CHALLENGES.md)) |
 | POST | `/api/interviews/:id/rewrites` | Build a stronger version of one answer from the candidate's own words (see [answer rewrites](docs/ANSWER_REWRITES.md)) |
 | POST | `/api/interviews/:id/pause` · `/resume` | Stop or restart a timed question's clock (see [timed rounds](docs/TIMED_ROUNDS.md)) |
+| POST | `/api/interviews/:id/transcribe` | Transcribe one spoken answer for review; the recording is not stored (see [voice answers](docs/VOICE_ANSWERS.md)) |
 
 All interview endpoints require authentication and enforce interview ownership. Submission checks prevent duplicate additions to the same question.
 
@@ -166,3 +167,5 @@ until a provider is configured. See [account behavior and migration](docs/ACCOUN
 and the [verified Google Cloud backup/restore runbook](docs/BACKUP_RESTORE.md).
 
 AI provider permission and cloud alert configuration are documented in [monitoring and consent](docs/MONITORING_AND_CONSENT.md). Practice remains available without AI permission; application email remains disabled.
+
+Usage estimates, invoice reconciliation and provider comparison: [USAGE_COST_AND_COMPARISON.md](docs/USAGE_COST_AND_COMPARISON.md).

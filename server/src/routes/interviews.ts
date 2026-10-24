@@ -1,6 +1,6 @@
 import { ConsentRequiredError, requireAIConsent } from '../services/providerConsent.js';
 import { operationalEvent } from '../services/monitoring.js';
-import { Router } from 'express';
+import express, { Router } from 'express';
 import mongoose from 'mongoose';
 import type { RequestHandler } from 'express';
 import { z } from 'zod';
@@ -10,7 +10,19 @@ import { AuthRequest, requireAuth } from '../middleware/auth.js';
 import { generateQuestion, interviewMode, rewriteAnswer } from '../services/ai.js';
 import { consumeAIQuota, consumeQuota, quotaLimit } from '../services/quotas.js';
 import { MAX_CHALLENGES_PER_INTERVIEW } from '../services/challenges.js';
+import { providerConfig, transcribeAudio } from '../services/modelProvider.js';
 import { randomUUID } from 'node:crypto';
+
+// Accepted recording formats, each checked against its leading bytes rather than trusting the header.
+const audioSignatures: Record<string, (b: Buffer) => boolean> = {
+  'audio/webm': b => b.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3])),
+  'audio/ogg': b => b.subarray(0, 4).toString('latin1') === 'OggS',
+  'audio/mp4': b => b.subarray(4, 8).toString('latin1') === 'ftyp',
+  'audio/mpeg': b => b.subarray(0, 3).toString('latin1') === 'ID3' || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0),
+  'audio/wav': b => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WAVE',
+};
+const audioType = (header?: string) => { const base = header?.split(';')[0].trim().toLowerCase(); return base === 'audio/x-wav' ? 'audio/wav' : base; };
+const audioBody = express.raw({ type: [...Object.keys(audioSignatures), 'audio/x-wav'], limit: '8mb' });
 
 const router = Router();
 router.use(requireAuth);
@@ -48,7 +60,35 @@ const timerLimit: RequestHandler = async (req, _res, next) => {
 // serverNow lets the browser correct for clock skew when showing the countdown.
 const view = (doc: InstanceType<typeof Interview>) => ({ interview: doc, mode: doc.mode ?? interviewMode(), serverNow: new Date() });
 
-router.get('/mode', (_req, res) => res.json({ mode: interviewMode() }));
+router.get('/mode', (_req, res) => res.json({ mode: interviewMode(), transcription: Boolean(providerConfig().transcriptionModel) }));
+// Turns one spoken answer into text for the candidate to review and edit; the recording is never stored.
+router.post('/:id/transcribe', aiLimit, audioBody, async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) { res.status(404).json({ error: 'Interview not found.' }); return; }
+    const doc = await Interview.findOne({ _id: req.params.id, userId: userId(req) }).select('mode status processingState pausedAt');
+    if (!doc) { res.status(404).json({ error: 'Interview not found.' }); return; }
+    if (!providerConfig().transcriptionModel) { res.status(409).json({ error: 'Voice answers are not enabled on this server.' }); return; }
+    if (doc.mode !== 'ai' || doc.status !== 'in_progress' || doc.processingState !== 'ready' || doc.pausedAt) {
+      res.status(409).json({ error: 'Voice answers are available while an AI interview question is on screen.' }); return;
+    }
+    const type = audioType(req.headers['content-type']);
+    const audio: unknown = req.body;
+    if (!type || !audioSignatures[type] || !Buffer.isBuffer(audio)) { res.status(415).json({ error: 'Send the recording as WebM, Ogg, MP4, MP3 or WAV audio.' }); return; }
+    if (audio.length < 1024) { res.status(400).json({ error: 'The recording is too short. Record your answer again.' }); return; }
+    if (!audioSignatures[type](audio)) { res.status(415).json({ error: 'The recording does not match its audio format.' }); return; }
+    await requireAIConsent(userId(req));
+    await consumeAIQuota(userId(req));
+    let text: string;
+    try { ({ text } = await transcribeAudio(audio, type, { userId: userId(req), interviewId: doc.id })); }
+    catch (err) {
+      if (err instanceof ConsentRequiredError) throw err;
+      operationalEvent('transcription_failure', 'WARNING');
+      res.status(502).json({ error: 'Your recording could not be transcribed. Please try again or type your answer.' }); return;
+    }
+    if (!text) { res.status(422).json({ error: 'No speech was detected. Try again closer to the microphone, or type your answer.' }); return; }
+    res.json({ transcript: text });
+  } catch (err) { next(err); }
+});
 router.get('/dashboard', async (req, res, next) => {
   try {
     const owner = new mongoose.Types.ObjectId(userId(req));

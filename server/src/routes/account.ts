@@ -68,6 +68,8 @@ router.get('/usage', async (req, res, next) => {
     const since = new Date(Date.now() - 30 * 86400_000);
     const rows = await AIUsage.aggregate([{ $match: { userId: new mongoose.Types.ObjectId((req as unknown as AuthRequest).userId), createdAt: { $gte: since } } },
       { $group: { _id: '$status', attempts: { $sum: 1 }, inputTokens: { $sum: '$inputTokens' }, outputTokens: { $sum: '$outputTokens' },
+        estimatedCostUsd: { $sum: '$cost.amountUsd' },
+        unknownCost: { $sum: { $cond: [{ $eq: [{ $ifNull: ['$cost.amountUsd', null] }, null] }, 1, 0] } },
         unknownUsage: { $sum: { $cond: [{ $or: [{ $eq: ['$inputTokens', null] }, { $eq: ['$outputTokens', null] }] }, 1, 0] } } } }]);
     res.json({ since, rows, note: 'Reported tokens for the last 30 days, not an invoice. Unknown usage is not zero. Practice mode makes no AI calls.' });
   } catch (err) { next(err); }

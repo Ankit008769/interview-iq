@@ -31,18 +31,21 @@ host.use(cookieParser());
 // Tokens are exposed only by this loopback test host, never by production app routes.
 host.post('/__test/enable-ai', requireAuth, (_req,res)=>{process.env.AI_PROVIDER='openai';process.env.OPENAI_API_KEY='test-only-not-real';res.sendStatus(204);});
 host.post('/__test/disable-ai', (_req,res)=>{process.env.AI_PROVIDER='practice';delete process.env.OPENAI_API_KEY;res.sendStatus(204);});
-// Loopback OpenAI-compatible stand-in for the seeded evidence answer: second reviews rate the
-// seeded quote 5; rewrites restate both seeded sentences and add one bracketed prompt.
+// Loopback OpenAI-compatible stand-in. Transcriptions return a fixed sentence; new questions are
+// numbered; for the seeded evidence answer, rewrites restate both seeded sentences plus one bracketed
+// prompt and second reviews rate the seeded quote 5.
 const gateway = createServer(async (req, res) => {
   let body = ''; for await (const chunk of req) body += chunk;
+  res.setHeader('content-type', 'application/json');
+  if (req.url?.endsWith('/audio/transcriptions')) { res.end(JSON.stringify({ text: 'Arrays give constant-time indexed access.' })); return; }
   const input = JSON.parse(JSON.parse(body).messages[1].content);
   const value = input.ratings !== undefined
     ? { summary: 'Leads with the contrast between the two structures.', parts: [
       { kind: 'answer', text: 'Arrays give direct indexed access.', quote: 'Arrays allow indexed access.' },
       { kind: 'answer', text: 'Linked lists must be walked to reach an element.', quote: 'Linked lists require traversal.' },
       { kind: 'addition', text: '[Add the time complexity of each operation]', quote: null }] }
-    : { score: 5, quote: 'Arrays allow indexed access.', rationale: 'The answer names indexed access explicitly.', improvement: null };
-  res.setHeader('content-type', 'application/json');
+    : input.questionNumber !== undefined ? { question: `Explain indexed access, question ${input.questionNumber}.`, topic: 'DSA' }
+      : { score: 5, quote: 'Arrays allow indexed access.', rationale: 'The answer names indexed access explicitly.', improvement: null };
   res.end(JSON.stringify({ id: 'chatcmpl_fixture', object: 'chat.completion', created: 1, model: 'fixture-judge',
     choices: [{ index: 0, message: { role: 'assistant', content: JSON.stringify(value), refusal: null }, finish_reason: 'stop' }],
     usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } }));
@@ -50,7 +53,7 @@ const gateway = createServer(async (req, res) => {
 await new Promise<void>(resolve => gateway.listen(0, '127.0.0.1', resolve));
 host.post('/__test/enable-gateway', requireAuth, (_req, res) => {
   Object.assign(process.env, { AI_PROVIDER: 'compatible', LLM_BASE_URL: `http://127.0.0.1:${(gateway.address() as AddressInfo).port}/v1`,
-    INTERVIEWER_MODEL: 'fixture-interviewer', JUDGE_MODEL: 'fixture-judge' });
+    INTERVIEWER_MODEL: 'fixture-interviewer', JUDGE_MODEL: 'fixture-judge', TRANSCRIPTION_MODEL: 'fixture-transcriber' });
   res.sendStatus(204);
 });
 host.post('/__test/account-links', requireAuth, async (req, res) => {

@@ -1,0 +1,34 @@
+import { afterAll, beforeAll, expect, it } from 'vitest';
+import { createServer } from 'node:http';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, dirname, resolve } from 'node:path';
+import type { AddressInfo } from 'node:net';
+const exec = promisify(execFile), directory = mkdtempSync(join(tmpdir(),'iq-comparison-'));
+let calls=0;
+const gateway=createServer(async(req,res)=>{
+  let body='';for await(const chunk of req)body+=chunk;
+  const parsed=JSON.parse(body), input=JSON.parse(parsed.messages[1].content);calls++;
+  const value={answers:input.turns.map((turn:any)=>({questionIndex:turn.questionIndex,criteria:input.rubric.criteria.map((criterion:any)=>({criterionId:criterion.id,score:3,quote:turn.answer,rationale:'Fixture evidence.',improvement:'Add a tradeoff.'}))}))};
+  res.setHeader('content-type','application/json');res.end(JSON.stringify({id:'fixture',object:'chat.completion',created:1,model:parsed.model,choices:[{index:0,message:{role:'assistant',content:JSON.stringify(value)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50}}));
+});
+beforeAll(async()=>{await new Promise<void>(r=>gateway.listen(0,'127.0.0.1',r));});
+afterAll(()=>{gateway.close();if(dirname(resolve(directory))===resolve(tmpdir()))rmSync(directory,{recursive:true,force:true});});
+it('dry-runs without calls, executes two real local gateway evaluations and writes a comparable report',async()=>{
+  const items=join(directory,'items.jsonl');writeFileSync(items,JSON.stringify({id:'one',type:'Technical',role:'Developer',difficulty:'Beginner',topic:'Arrays',question:'Explain indexed access.',answer:'Arrays support direct indexed access.',source:'synthetic'}));
+  const endpoint=`http://127.0.0.1:${(gateway.address() as AddressInfo).port}/v1`;
+  const env={...process.env,NODE_ENV:'test',AI_PROVIDER:'compatible',LLM_BASE_URL:endpoint,INTERVIEWER_MODEL:'fixture-interviewer',JUDGE_MODEL:'fixture-a',AI_RATE_CARD_JSON:'[]'};
+  const cli=(args:string[],overrides={})=>exec(process.execPath,['--import','tsx','src/scripts/providerComparison.ts',...args],{env:{...env,...overrides},timeout:30000});
+  const outA=join(directory,'a.json'),outB=join(directory,'b.json'),report=join(directory,'report.json');
+  const common=['run','--items',items,'--label','a','--out',outA];
+  expect((await cli(common)).stdout).toContain('No calls made');expect(calls).toBe(0);
+  await cli([...common,'--reviewed','--yes']);
+  await cli(['run','--items',items,'--label','b','--out',outB,'--reviewed','--yes'],{JUDGE_MODEL:'fixture-b'});
+  await cli(['report','--runs',`${outA},${outB}`,'--out',report]);
+  const result=JSON.parse(readFileSync(report,'utf8'));expect(calls).toBe(2);
+  expect(result.runs).toHaveLength(2);expect(result.runs.every((r:any)=>r.failures===0&&r.unknownCostAttempts===1&&r.supportedCriteria>0)).toBe(true);
+  expect(JSON.stringify(result)).not.toContain('Arrays support');
+  await expect(cli([...common,'--reviewed','--yes'])).rejects.toThrow();expect(calls).toBe(2);
+},60000);

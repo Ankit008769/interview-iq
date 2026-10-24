@@ -52,6 +52,9 @@ const handler: ErrorRequestHandler = (err, _req, res, _next) => {
     res.status(429).json({ error: err.message, code: 'QUOTA_EXCEEDED', resetAt: err.resetAt.toISOString() }); return;
   }
   if (err instanceof ConsentRequiredError) { res.status(409).json({error:err.message,code:'AI_CONSENT_REQUIRED'}); return; }
+  // Oversized or malformed request bodies are client errors, not server faults.
+  if (err?.type === 'entity.too.large') { res.status(413).json({ error: 'That upload is too large.' }); return; }
+  if (err?.type === 'entity.parse.failed') { res.status(400).json({ error: 'The request body could not be read.' }); return; }
   operationalEvent('api_error', 'ERROR');
   res.status(500).json({ error: 'Request failed. Please retry; if it continues, check the backend logs.' });
 };

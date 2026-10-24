@@ -12,5 +12,7 @@ export function providerConfig() {
     if (!loopback && !key) throw new Error('Remote compatible providers require LLM_GATEWAY_TOKEN.');
     if (!process.env.INTERVIEWER_MODEL || !process.env.JUDGE_MODEL) throw new Error('Compatible providers require explicit interviewer and judge models.');
   }
-  return { provider, key, baseURL: provider === 'compatible' ? process.env.LLM_BASE_URL : provider === 'openai' ? 'https://api.openai.com/v1' : undefined };
+  // Voice answers stay off until a transcription model is chosen explicitly, so no audio cost is a surprise.
+  const transcriptionModel = provider === 'practice' ? undefined : process.env.TRANSCRIPTION_MODEL || undefined;
+  return { provider, key, transcriptionModel, baseURL: provider === 'compatible' ? process.env.LLM_BASE_URL : provider === 'openai' ? 'https://api.openai.com/v1' : undefined };
 }

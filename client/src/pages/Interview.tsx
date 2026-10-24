@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, BrainCircuit, CircleCheck, Clock3, Info, Send, S
 import { api, type Interview as InterviewModel, type Mode } from '../lib/api';
 import { LoadingScreen } from '../components/Layout';
 import { PausedCard, QuestionTimer, clock, useQuestionElapsed } from '../components/Timing';
+import { ReadAloud, VoiceAnswer } from '../components/Voice';
 type InterviewResponse = { interview: InterviewModel; mode: Mode; serverNow?: string };
 export function InterviewRoom() {
   const {id}=useParams();const navigate=useNavigate();
@@ -13,6 +14,10 @@ export function InterviewRoom() {
   const [answer,setAnswer]=useState('');const [busy,setBusy]=useState(false);const [error,setError]=useState('');
   const apply=(d:InterviewResponse)=>{setInterview(d.interview);setMode(d.mode);if(d.serverNow)setSkew(new Date(d.serverNow).getTime()-Date.now());};
   useEffect(()=>{let live=true;api<InterviewResponse>(`/interviews/${id}`).then(d=>{if(live)apply(d);}).catch(e=>{if(live)setError(e.message);});return()=>{live=false}},[id]);
+  // Voice answers appear only when the server has a transcription model; typing always works.
+  const [transcription,setTranscription]=useState(false);
+  const [voiceBusy,setVoiceBusy]=useState(false);
+  useEffect(()=>{api<{transcription?:boolean}>('/interviews/mode').then(d=>setTranscription(!!d.transcription)).catch(()=>setTranscription(false));},[]);
   useEffect(()=>{if(interview?.status==='completed')navigate(`/interview/${id}/results`,{replace:true});},[interview,id,navigate]);
   useEffect(() => {
     if (!['queued', 'processing'].includes(interview?.processingState ?? '')) return;
@@ -35,7 +40,7 @@ export function InterviewRoom() {
     catch (err) { setError((err as Error).message); }
     finally { setBusy(false); }
   }
-  async function submit(e:FormEvent){e.preventDefault();if(!interview||busy)return;setBusy(true);setError('');
+  async function submit(e:FormEvent){e.preventDefault();if(!interview||busy||voiceBusy)return;setBusy(true);setError('');
     try{const d=await api<InterviewResponse>(`/interviews/${id}/answer`,{method:'POST',body:JSON.stringify({answer,questionIndex:interview.turns.length,submissionId:`${interview._id}:${interview.turns.length}`})});apply(d);setAnswer('');
       if(d.interview.status==='completed')navigate(`/interview/${id}/results`,{replace:true});
     }catch(err){setError((err as Error).message);}finally{setBusy(false);}
@@ -55,8 +60,8 @@ export function InterviewRoom() {
       {!waiting && limit && elapsed !== null && <QuestionTimer limit={limit} elapsed={elapsed} paused={paused} busy={busy} onPause={()=>post('pause')}/>}
       {!waiting && paused && <PausedCard busy={busy} onResume={()=>post('resume')}/>}
       {!waiting && paused && error && <div className="alert error" role="alert">{error}</div>}
-      {!waiting && !paused && <article className="card question-card"><div className="question-card-head"><span className="ai-avatar"><BrainCircuit size={24}/></span><div><b>{mode==='ai'?'AI Interviewer':'Practice Interviewer'}</b><span>Question {current} · {interview.currentTopic}</span></div><span className="question-badge"><Sparkles size={13}/> Question {current}</span></div><h2>{interview.currentQuestion}</h2><div className="question-foot"><Info size={16}/> Explain your thought process and use examples where possible.</div></article>}
-      {!waiting && !paused && <form className="card answer-card" onSubmit={submit}><div className="answer-header"><span><UserRound size={18}/> Your response</span><span>{answer.length}/3500</span></div><textarea value={answer} onChange={e=>setAnswer(e.target.value)} placeholder={'Start typing your answer here...\n\nTry explaining the concept, giving an example, and mentioning tradeoffs.'} minLength={10} maxLength={3500} required disabled={busy} rows={9}/>{timeUp && <p className="time-up-note" role="status">Time is up. Finish your thought and submit; your results will show how long this answer took.</p>}<div className="answer-actions"><span><CircleCheck size={15}/> {limit?`Timed round: ${clock(limit)} per question`:'You can take your time'}</span><button type="submit" disabled={busy||answer.trim().length<10} className="button primary">{busy?'Thinking...':current===interview.totalQuestions?'Finish interview':'Submit & continue'} <Send size={16}/></button></div>{error&&<div className="alert error" role="alert">{error}</div>}</form>}
+      {!waiting && !paused && <article className="card question-card"><div className="question-card-head"><span className="ai-avatar"><BrainCircuit size={24}/></span><div><b>{mode==='ai'?'AI Interviewer':'Practice Interviewer'}</b><span>Question {current} · {interview.currentTopic}</span></div><span className="question-badge"><Sparkles size={13}/> Question {current}</span></div><h2>{interview.currentQuestion}</h2><div className="question-foot"><Info size={16}/> Explain your thought process and use examples where possible.<ReadAloud text={interview.currentQuestion}/></div></article>}
+      {!waiting && !paused && <form className="card answer-card" onSubmit={submit}><div className="answer-header"><span><UserRound size={18}/> Your response</span><span>{answer.length}/3500</span></div><textarea value={answer} onChange={e=>setAnswer(e.target.value)} placeholder={'Start typing your answer here...\n\nTry explaining the concept, giving an example, and mentioning tradeoffs.'} minLength={10} maxLength={3500} required disabled={busy} rows={9}/>{mode==='ai' && transcription && <VoiceAnswer key={`${interview._id}:${interview.turns.length}`} interviewId={interview._id} disabled={busy} onBusy={setVoiceBusy} onTranscript={text=>{const combined=(answer.trim()?answer.trimEnd()+' ':'')+text;if(combined.length>3500)return false;setAnswer(combined);return true;}}/>}{timeUp && <p className="time-up-note" role="status">Time is up. Finish your thought and submit; your results will show how long this answer took.</p>}<div className="answer-actions"><span><CircleCheck size={15}/> {limit?`Timed round: ${clock(limit)} per question`:'You can take your time'}</span><button type="submit" disabled={busy||voiceBusy||answer.trim().length<10||answer.length>3500} className="button primary">{busy?'Thinking...':current===interview.totalQuestions?'Finish interview':'Submit & continue'} <Send size={16}/></button></div>{error&&<div className="alert error" role="alert">{error}</div>}</form>}
       {waiting && <div className="card answer-card" role="status" aria-live="polite">
         <h2>Your answer is saved</h2>
         {interview.processingState === 'queued' && interview.processingError && <p>{interview.processingError}</p>}

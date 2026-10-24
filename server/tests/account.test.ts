@@ -83,10 +83,12 @@ it('supports legacy accounts without authVersion and rejects bcrypt truncation f
 it('exports only owned data and reports unknown usage separately',async()=>{
   const a=await register(), b=await register();await a.agent.post('/api/interviews').send(setup).expect(201);await b.agent.post('/api/interviews').send(setup).expect(201);
   await AIUsage.create([{userId:a.id,status:'failed',inputTokens:12,outputTokens:4},{userId:a.id},{userId:b.id,inputTokens:9000,outputTokens:9000}]);
+  await AIUsage.collection.updateMany({status:'started'},{$unset:{cost:1}});
   const exported=await a.agent.get('/api/account/export').expect(200);
   expect(exported.body.interviews).toHaveLength(1);expect(exported.body.usage).toHaveLength(2);
   expect(exported.body.user.id).toBe(a.id);expect(JSON.stringify(exported.body)).not.toContain('passwordHash');expect(JSON.stringify(exported.body)).not.toContain(b.id);
   const usage=(await a.agent.get('/api/account/usage').expect(200)).body;
+  expect(usage.rows.find((r:any)=>r._id==='started').unknownCost).toBe(1);
   expect(usage.rows.find((r:any)=>r._id==='started').unknownUsage).toBe(1);expect(usage.rows.find((r:any)=>r._id==='failed').inputTokens).toBe(12);
 });
 it('deletion revokes access immediately, retries cleanup and removes late writes using receipts',async()=>{
@@ -113,17 +115,20 @@ it('shares authentication limits in Mongo and supplies retry time',async()=>{
   expect(Number(limited.headers['retry-after'])).toBeGreaterThan(0);
 });
 it('records rejected output tokens and unknown transport failures without recording candidate text',async()=>{
+  vi.stubEnv('AI_RATE_CARD_JSON',JSON.stringify([{version:'test-v1',provider:'openai',endpoint:'https://api.openai.com/v1',model:'resolved',slot:'judge',source:'https://example.test/rates',validFrom:'2020-01-01T00:00:00.000Z',validUntil:'2099-01-01T00:00:00.000Z',inputUsdPerMillion:2,outputUsdPerMillion:8}]));
   const a=await register();vi.stubEnv('AI_PROVIDER','openai');vi.stubEnv('OPENAI_API_KEY','test-not-real');
   const disclosure=(await a.agent.get('/api/account/ai-consent')).body.disclosure;
   await a.agent.post('/api/account/ai-consent').send({version:disclosure.version,accepted:true}).expect(200);
   const call={usageContext:{userId:a.id},slot:'judge' as const,system:'secret candidate prompt',input:'secret answer',schema:z.object({ok:z.boolean()}),name:'test',promptVersion:'v1',maxOutputTokens:100};
   const fetch=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({id:'r',model:'resolved',status:'completed',output:[{type:'message',role:'assistant',content:[{type:'output_text',text:'not json'}]}],usage:{input_tokens:13,output_tokens:7}}),{headers:{'content-type':'application/json'}}));
   await expect(configuredProvider()!.structured(call)).rejects.toThrow('valid response');
-  const invalid=await AIUsage.findOne({userId:a.id}).lean();expect(invalid).toMatchObject({status:'failed',failure:'invalid_output',inputTokens:13,outputTokens:7});
+  const invalid=await AIUsage.findOne({userId:a.id}).lean();expect(invalid).toMatchObject({status:'failed',failure:'invalid_output',inputTokens:13,outputTokens:7,cost:{amountUsd:0.000082,reason:'estimated',rate:{version:'test-v1'}}});
   fetch.mockRejectedValue(new Error('private upstream payload'));
   await expect(configuredProvider()!.structured(call)).rejects.toThrow('valid response');
   const failed=await AIUsage.findOne({failure:'provider_error'}).lean();expect(failed).toMatchObject({status:'failed',inputTokens:null,outputTokens:null});
   expect(JSON.stringify(await AIUsage.find({}))).not.toContain('secret answer');expect(fetch).toHaveBeenCalledTimes(2);
+  const costs=(await a.agent.get('/api/account/usage').expect(200)).body.rows.find((row:any)=>row._id==='failed');
+  expect(costs.estimatedCostUsd).toBeCloseTo(0.000082,12);expect(costs.unknownCost).toBe(1);
 });
 
 it('blocks AI before quota/vendor work without explicit current consent and keeps practice available',async()=>{

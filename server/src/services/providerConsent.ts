@@ -15,6 +15,9 @@ export function aiDisclosure() {
     description: 'Your role, topic, interview questions and full saved answers are sent to this provider to generate follow-up questions and coaching feedback. Avoid entering secrets or sensitive personal information.',
     retention: 'Provider processing and retention follow its terms. India-only processing, offline operation and zero retention are not guaranteed. Interview IQ retains your saved interviews until deletion.',
     withdrawal: 'You can withdraw permission in Account. This stops future requests, including queued work; it cannot recall data already sent or cancel an in-flight request. Practice mode sends no content to an AI provider.',
+    // Added only when voice is enabled, so enabling it asks everyone to review the change.
+    ...(config.transcriptionModel ? { transcriptionModel: config.transcriptionModel,
+      voice: 'If you answer by voice, your recording is sent to this provider for transcription. Interview IQ does not store the recording; only the text you review and submit is saved.' } : {}),
   };
   // Include the full gateway path in the fingerprint without publishing it in UI.
   const version = createHash('sha256').update(JSON.stringify({ ...value, gateway:config.baseURL || '' })).digest('hex');

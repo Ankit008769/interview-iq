@@ -1,0 +1,83 @@
+# Voice: turn-based answers and read-aloud (Phase B1)
+
+Implemented 25 October 2026 as the first Phase B slice. Real-time voice (B2) comes
+later; this slice keeps the existing text pipeline, so evidence scoring, challenges and
+rewrites work unchanged on spoken answers.
+
+## What the user sees
+
+- **Read question aloud** on every question. It uses the browser's built-in speech
+  synthesis, so it works in practice mode. Local voices are preferred when available;
+  other voices may use browser/OS provider services, so offline processing is not guaranteed. The question
+  stays on screen as the caption. The button is hidden in browsers without speech
+  synthesis.
+- **Answer by voice** in AI interviews when transcription is enabled. The browser asks
+  for the microphone, a timer shows the recording length (automatic stop at 5 minutes),
+  and **Stop recording** sends the audio for transcription. The text is appended to the
+  answer box for the candidate to **review and edit before submitting**. Nothing is
+  submitted automatically. A blocked microphone, silence or a provider failure shows a
+  message, and typing always remains available.
+
+## Provider and privacy
+
+- API-first, like text: `TRANSCRIPTION_MODEL` enables voice through the configured
+  provider's OpenAI-compatible `/audio/transcriptions` endpoint. That is OpenAI (for
+  example `gpt-4o-mini-transcribe` or `whisper-1`), or a self-hosted Whisper server
+  behind the compatible gateway. Voice stays off until the variable is set, and
+  practice mode never transcribes.
+- The AI disclosure gains the transcription model and a voice paragraph when voice is
+  on. Because the disclosure is fingerprinted, turning voice on asks every user to
+  review and accept again. Turning it off restores the earlier text and fingerprint.
+- **Interview IQ does not persist recordings.** Provider retention follows its terms. The server holds the upload in memory, passes it
+  to the provider and discards it. Only the text the candidate submits is saved. The
+  usage ledger records each attempt (slot `transcriber`, prompt `transcription.v1`)
+  before calling the provider. Provider errors are never echoed or logged.
+
+## API
+
+`POST /api/interviews/:id/transcribe` with the raw recording as the body and its type
+as `Content-Type`. Returns the full `{ transcript }`. The answer remains limited to 3,500 characters;
+long transcripts are preserved in an editable recovery box instead of truncated.
+
+- Accepted types: `audio/webm`, `audio/ogg`, `audio/mp4`, `audio/mpeg`,
+  `audio/wav`/`audio/x-wav`. Each is checked against the file's leading bytes (415 if it
+  does not match). Under 1 KB returns 400; over 8 MB returns 413.
+- Requires the owner's in-progress AI interview with a question on screen (409
+  otherwise), voice enabled on the server (409), and current AI consent (409
+  `AI_CONSENT_REQUIRED`).
+- Counts against the interview write limit and the daily AI call quota.
+- 502 on provider failure (`transcription_failure` WARNING event), 422 when no speech
+  is detected.
+- `GET /api/interviews/mode` now also returns `transcription: true|false`.
+
+The general error handler now returns 413 for any oversized body and 400 for an
+unreadable body, instead of a generic 500.
+
+## Verification
+
+`server/tests/transcription.test.ts` (real local HTTP gateway and MongoDB): disclosure
+and fingerprint change, the mode flag, a successful multipart upload with model and
+filename, usage records, no stored audio or transcript, Ogg support, rejected types,
+mislabelled and tiny files, the 8 MB limit, interview-state rules, other accounts,
+voice switched off, withdrawn consent, provider failure without leaked text, and
+silence. `server/e2e/voice.spec.ts` uses Chromium's fake microphone so the real
+`MediaRecorder` records, uploads and transcribes. It checks the appended transcript,
+editing before submit, the saved answer and read-aloud.
+
+Not yet measured: transcription accuracy for Indian English and Hinglish. B5 adds the
+test sets, and IndicConformer routing if needed.
+
+## Reliability follow-up — 25 October 2026
+
+Voice permission requests, recording and transcription can be cancelled. Navigation
+or a question change stops all microphone tracks and aborts the local upload; a late
+permission result or transcript is ignored. Cancelling cannot recall audio already
+sent to the provider. Submitting an answer is disabled while voice is active. Typing
+remains available, and overflow transcripts can be shortened without replacing the
+existing answer. Recording errors release resources and recordings are bounded by
+five minutes and 8 MB. Paused interviews reject transcription.
+
+Consent is checked again immediately before vendor dispatch. Withdrawal after the
+usage receipt is created cancels the attempt with zero tokens and sends no audio.
+Browser regressions cover cancellation, navigating away while recording and overflow
+correction, in addition to the original spoken-answer flow.

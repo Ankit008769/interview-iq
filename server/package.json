@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "calibration": "tsx src/scripts/calibration.ts"
+    "calibration": "tsx src/scripts/calibration.ts",
+    "comparison": "tsx src/scripts/providerComparison.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^8.4.0",

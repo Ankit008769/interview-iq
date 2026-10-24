@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../components/AuthProvider';
 interface Session { id: string; createdAt: string; expiresAt: string; current: boolean }
-interface Usage { rows: { _id: string; attempts: number; inputTokens: number; outputTokens: number; unknownUsage: number }[]; note: string }
+interface Usage { rows: { _id: string; attempts: number; inputTokens: number; outputTokens: number; unknownUsage: number; estimatedCostUsd?: number; unknownCost?: number }[]; note: string }
 export function Account() {
   const { user, setUser } = useAuth(); const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>([]); const [usage, setUsage] = useState<Usage>();
@@ -42,7 +42,7 @@ export function Account() {
       <label className="field">New password<input type="password" autoComplete="new-password" required minLength={8} maxLength={72} value={newPassword} onChange={e=>setNewPassword(e.target.value)}/></label>
       <p>Use at least 8 characters, at most 72 UTF-8 bytes.</p><button className="button primary" disabled={busy}>Change password and sign out</button></form></section>
     <section className="account-card"><h2>AI usage · last 30 days</h2><p>{usage?.note}</p>
-      {!usage?.rows.length ? <p>No AI attempts recorded.</p> : <ul>{usage.rows.map(row=><li key={row._id}>{row._id === 'started' ? 'Unresolved' : row._id}: {row.attempts} attempts · {row.inputTokens} reported input tokens · {row.outputTokens} reported output tokens · {row.unknownUsage} with unknown usage</li>)}</ul>}</section>
+      {!usage?.rows.length ? <p>No AI attempts recorded.</p> : <ul>{usage.rows.map(row=><li key={row._id}>{row._id === 'started' ? 'Unresolved' : row._id}: {row.attempts} attempts · {row.inputTokens} reported input tokens · {row.outputTokens} reported output tokens · {row.unknownUsage} with unknown usage</li>)}</ul>}<p>Estimated provider cost (USD): {usage?.rows.every(row => typeof row.estimatedCostUsd === 'number') ? usage.rows.reduce((sum,row)=>sum+(row.estimatedCostUsd ?? 0),0).toFixed(6) : 'unavailable'}. Unknown-cost attempts: {usage?.rows.reduce((sum,row)=>sum+(row.unknownCost ?? row.attempts),0) ?? 'unavailable'}. This is a partial estimate, not an invoice; taxes, credits and unreported charges are excluded.</p></section>
     <section className="account-card"><h2>Export your data</h2><p>Download your profile, saved interviews and usage records as JSON.</p><a className="button" href="/api/account/export">Download my data</a></section>
     <section className="account-card"><h2>Delete account</h2><p>Deletion revokes access immediately. Background cleanup removes your profile, interviews, usage and sessions. Backup copies expire separately; minimal deletion receipts are retained separately to prevent restoration of deleted accounts. Cleanup waits if that safety copy is temporarily unavailable.</p>
       <form className="form-stack" onSubmit={e=>{e.preventDefault(); void action('/account/delete',{password:deletePassword,confirmation},true);}}>
