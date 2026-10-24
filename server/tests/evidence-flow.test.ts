@@ -31,6 +31,8 @@ beforeAll(async () => {
   vi.stubEnv('INTERVIEWER_MODEL', 'iq-interviewer'); vi.stubEnv('JUDGE_MODEL', 'iq-judge');
   mongo = await MongoMemoryServer.create(); await mongoose.connect(mongo.getUri());
   await owner.post('/api/auth/register').send({ name: 'Evidence Tester', email: 'evidence@example.test', password: 'test-password' }).expect(201);
+  const consent=(await owner.get('/api/account/ai-consent')).body;
+  await owner.post('/api/account/ai-consent').send({version:consent.disclosure.version,accepted:true}).expect(200);
 }, 120_000);
 afterAll(async () => { vi.unstubAllEnvs(); await mongoose.disconnect(); await mongo?.stop(); gateway.close(); });
 

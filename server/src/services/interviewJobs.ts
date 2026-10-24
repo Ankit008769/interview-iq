@@ -1,3 +1,5 @@
+import { ConsentRequiredError } from './providerConsent.js';
+import { operationalEvent } from './monitoring.js';
 import { randomUUID } from 'node:crypto';
 import { Interview } from '../models/Interview.js';
 import { evaluateInterview, generateQuestion } from './ai.js';
@@ -42,6 +44,11 @@ export async function processNextInterviewJob(): Promise<boolean> {
     await Interview.updateOne(fence, { $set: { ...result, processingState: 'ready' },
       $unset: { jobLeaseToken: 1, jobLeaseUntil: 1, jobNextAttemptAt: 1, processingError: 1 } }, { runValidators: true });
   } catch (err) {
+    if (err instanceof ConsentRequiredError) {
+      await Interview.updateOne(fence, {$set:{processingState:'failed',processingError:err.message},$unset:{jobLeaseToken:1,jobLeaseUntil:1}});
+      return true;
+    }
+    operationalEvent('interview_processing_failure', 'WARNING');
     if (err instanceof QuotaError) {
       await Interview.updateOne(fence, { $set: { processingState: 'queued',
         processingError: err.message, jobNextAttemptAt: err.resetAt },
@@ -62,10 +69,13 @@ export function startInterviewWorker() {
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let running: Promise<void> = Promise.resolve();
+  let lastHeartbeat = 0;
   const tick = () => {
     running = (async () => {
-      try { await processAccountDeletions(); await processNextInterviewJob(); }
-      catch { console.error('[Interview worker] Database operation failed; recovery will retry.'); }
+      try { await processAccountDeletions(); await processNextInterviewJob();
+        if (Date.now()-lastHeartbeat >= 60_000) { operationalEvent('worker_heartbeat','INFO'); lastHeartbeat=Date.now(); }
+      }
+      catch { operationalEvent('worker_database_error','ERROR'); }
       if (!stopped) timer = setTimeout(tick, 1000);
     })();
   };

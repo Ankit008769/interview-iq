@@ -1,3 +1,6 @@
+import { providerConfig } from './providerConfig.js';
+export { providerConfig } from './providerConfig.js';
+import { requireAIConsent, ConsentRequiredError } from './providerConsent.js';
 import { AIUsage } from '../models/AIUsage.js';
 import OpenAI from 'openai';
 import { z } from 'zod';
@@ -18,41 +21,27 @@ export interface ModelProvider {
   structured<T>(request: StructuredRequest<T>): Promise<{ value: T; metadata: GenerationMetadata }>;
 }
 
-export function providerConfig() {
-  const provider = process.env.AI_PROVIDER || (process.env.OPENAI_API_KEY ? 'openai' : 'practice');
-  if (!['practice', 'openai', 'compatible'].includes(provider)) throw new Error('Invalid AI_PROVIDER.');
-  const key = provider === 'openai' ? process.env.OPENAI_API_KEY : process.env.LLM_GATEWAY_TOKEN;
-  if (provider === 'openai' && !key) throw new Error('OpenAI provider credentials are missing.');
-  if (provider === 'compatible') {
-    const url = new URL(process.env.LLM_BASE_URL || '');
-    const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
-    if (url.username || url.password || url.search || url.hash || (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback))) {
-      throw new Error('LLM_BASE_URL must be HTTPS (HTTP is allowed only on loopback) without embedded credentials.');
-    }
-    if (!loopback && !key) throw new Error('Remote compatible providers require LLM_GATEWAY_TOKEN.');
-    if (!process.env.INTERVIEWER_MODEL || !process.env.JUDGE_MODEL) throw new Error('Compatible providers require explicit interviewer and judge models.');
-  }
-  return { provider, key, baseURL: provider === 'compatible' ? process.env.LLM_BASE_URL : undefined };
-}
-
 export function configuredProvider(): ModelProvider | null {
   const config = providerConfig();
   if (config.provider === 'practice') return null;
   const client = new OpenAI({ apiKey: config.key || 'local-development', baseURL: config.baseURL, timeout: 25_000, maxRetries: 0 });
   return {
     async structured<T>(request: StructuredRequest<T>) {
+      if (process.env.NODE_ENV === 'production' && !request.usageContext) throw new ConsentRequiredError();
       const model = (request.slot === 'judge' ? process.env.JUDGE_MODEL : process.env.INTERVIEWER_MODEL) || process.env.AI_MODEL || 'gpt-4o-mini';
       const serialized = JSON.stringify(request.input);
       const inputHash = createHash('sha256').update(JSON.stringify({ system: request.system, input: request.input })).digest('hex');
       const started = Date.now();
+      const consent = request.usageContext ? await requireAIConsent(request.usageContext.userId) : null;
       // Persist before calling the vendor: a crash leaves an explicit unknown attempt.
       const attempt = request.usageContext ? await AIUsage.create({ ...request.usageContext,
-        provider: config.provider, model, slot: request.slot, promptVersion: request.promptVersion }) : null;
+        consentVersion: consent?.version, provider: config.provider, model, slot: request.slot, promptVersion: request.promptVersion }) : null;
       let actualModel = model;
       let inputTokens: number | null = null;
       let outputTokens: number | null = null;
       let received = false;
       try {
+        if (request.usageContext) await requireAIConsent(request.usageContext.userId);
         let raw: string | null | undefined;
         let complete = false;
         if (config.provider === 'openai') {
@@ -81,7 +70,11 @@ export function configuredProvider(): ModelProvider | null {
           inputTokens, outputTokens, latencyMs: Date.now() - started } });
         return { value, metadata: { provider: config.provider, model: actualModel,
           promptVersion: request.promptVersion, inputHash, inputTokens, outputTokens, latencyMs: Date.now() - started } };
-      } catch {
+      } catch (error) {
+        if (error instanceof ConsentRequiredError) {
+          if (attempt) await AIUsage.updateOne({_id:attempt._id},{$set:{status:'cancelled',inputTokens:0,outputTokens:0,failure:'consent_revoked',latencyMs:Date.now()-started}});
+          throw error;
+        }
         if (attempt) await AIUsage.updateOne({ _id: attempt._id }, { $set: { status: 'failed', model: actualModel,
           inputTokens, outputTokens, latencyMs: Date.now() - started, failure: received ? 'invalid_output' : 'provider_error' } });
         // Provider errors may contain credentials, transcripts or upstream response bodies.

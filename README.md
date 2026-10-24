@@ -125,7 +125,7 @@ exist solely in `server/e2e/fixture.ts`, which is excluded from the production b
 - API keys stay on the Express server. Never use `VITE_OPENAI_API_KEY`.
 - Passwords use bcrypt hashing and session tokens are held in HTTP-only cookies. JWT_SECRET (retained configuration name for auth-limit IP hashing) must be long and random.
 - Cookie handling uses `SameSite=Lax`; deploy frontend and API under one site (e.g. `yourdomain.com` and same-origin `/api` proxy). If deploying across distinct sites, redesign cookie/CSRF handling carefully rather than simply switching to `SameSite=None`.
-- For public production use: configure live email, stronger abuse prevention, provider consent, accessible UX review, monitoring and independently replicated deletion receipts.
+- For public production use: configure live email, stronger abuse prevention, accessible UX review, independently replicated deletion receipts and full operational hardening.
 - The interview evaluation is **coaching feedback**, not an objective measure of employability or a hiring decision.
 - User content is handled as untrusted data in prompts and model output is parsed through a defined schema.
 
@@ -153,3 +153,5 @@ Account settings now support session revocation, password change/recovery, email
 verification, data export/deletion and 30-day AI usage. Email delivery is disabled
 until a provider is configured. See [account behavior and migration](docs/ACCOUNT_AND_USAGE.md)
 and the [verified Google Cloud backup/restore runbook](docs/BACKUP_RESTORE.md).
+
+AI provider permission and cloud alert configuration are documented in [monitoring and consent](docs/MONITORING_AND_CONSENT.md). Practice remains available without AI permission; application email remains disabled.

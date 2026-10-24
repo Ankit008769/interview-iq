@@ -13,7 +13,7 @@ The application remains private staging, with a single MongoDB VM.
 
 These are crash-consistent disk snapshots, not point-in-time recovery or a replica.
 Journal recovery was tested on a copy. An hourly schedule is not a guaranteed maximum
-one-hour RPO: failed/delayed snapshots extend the gap, and alerting is still pending.
+one-hour RPO: failed/delayed snapshots extend the gap, and log-based freshness/failure monitoring does not eliminate that risk.
 Google only automatically removes an expired snapshot when a newer snapshot exists;
 manual snapshots are not governed by this policy. Seven days is therefore a configured
 retention policy, not an unconditional deletion deadline. Monitor snapshot age and
@@ -91,7 +91,8 @@ uses no auth only inside a network-disabled container; never use it on a live ho
    the checks and deletion reconciliation pass. Roll back to the preserved disk if
    needed; keep the outage/write boundary explicit to avoid divergent data.
 
-Independent deletion-ledger replication, backup failure/age alerts, infrastructure
+Backup failure/freshness alert configuration is covered in MONITORING_AND_CONSENT.md.
+Independent deletion-ledger replication, infrastructure
 as code, cross-region DR, logical exports and automated promotion remain follow-up
 work. This milestone does not make the single-VM deployment production HA.
 

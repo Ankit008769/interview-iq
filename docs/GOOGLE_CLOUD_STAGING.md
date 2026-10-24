@@ -4,8 +4,8 @@ Project: `project-12b39f1f-9d49-456e-957` (Ankit's billing-enabled project).
 Region: `asia-south1`. Cloud Run service: `interview-iq`.
 URL: https://interview-iq-341474411884.asia-south1.run.app
 
-The service is private and now uses Identity-Aware Proxy (IAP) for Google browser
-sign-in, followed by the application's own login. The IAP service agent has Cloud
+The current service configuration permits public HTTP access; account and interview
+data require application sign-in. Earlier staging used Identity-Aware Proxy (IAP). The IAP service agent has Cloud
 Run Invoker access; Ankit's Google account has service-level IAP Web App User access.
 External Gmail access requires the IAP OAuth consent/client configuration. The
 initial deployment checks below predate IAP; ordinary CLI identity-token requests
@@ -46,10 +46,10 @@ gcloud run services describe interview-iq --region=asia-south1 --project=project
 gcloud run services logs read interview-iq --region=asia-south1 --project=project-12b39f1f-9d49-456e-957 --limit=50
 ```
 
-Health `/api/health` must report `database: connected`. Unauthenticated Google
-requests are rejected before reaching the application. Automated browser checks
-can supply a short-lived Google identity token through request headers; never
-record that token in traces, screenshots, source or logs.
+Health `/api/health` must report `database: connected`. In the current configuration
+this endpoint is public and is probed by Cloud Monitoring. Account and interview
+endpoints reject unauthenticated application requests. If IAP is restored, update
+monitoring authentication as well; never put identity tokens in logs or traces.
 
 To suspend staging compute, set the Cloud Run minimum instances to zero and stop
 the Mongo VM. Restore the VM and minimum instance count before expecting background
@@ -65,7 +65,8 @@ two saved answers with reload, worker completion, history, logout and login.
 
 VM guest logs are available through serial-port output. The VM service account
 does not currently have Cloud Logging writer permission; centralized VM log
-shipping and alerting remain pending. Cloud Run application logs are available.
+shipping remains pending. Cloud Run application logs are available; native uptime,
+backup and application monitoring are now configured. See [monitoring and consent](MONITORING_AND_CONSENT.md).
 
 The live browser smoke also passed after a Mongo VM reboot. During the reboot,
 health correctly returned 503, then recovered. A request without Google IAM

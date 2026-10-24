@@ -1,3 +1,4 @@
+import { AIConsent } from '../components/AIConsent';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
@@ -29,6 +30,7 @@ export function Account() {
     {error && <div className="alert error" role="alert">{error} <button className="button" onClick={load}>Retry loading</button></div>}
     {message && <p role="status">{message}</p>}
     {!loaded ? <p>Loading account settings…</p> : <>
+    <section className="account-card"><AIConsent/></section>
     <section className="account-card"><h2>Email verification</h2><p>{user?.email} · {user?.emailVerified ? 'Verified' : 'Not verified'}</p>
       {!emailEnabled && <p>Email delivery is not configured yet. Recovery and verification emails are unavailable.</p>}
       <button className="button" disabled={busy || !emailEnabled || user?.emailVerified} onClick={() => action('/auth/verification-email')}>Send verification email</button></section>

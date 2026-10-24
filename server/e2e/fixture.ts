@@ -27,6 +27,8 @@ let stopWorker: (() => Promise<void>) | undefined = startInterviewWorker();
 const host = express();
 host.use(cookieParser());
 // Tokens are exposed only by this loopback test host, never by production app routes.
+host.post('/__test/enable-ai', requireAuth, (_req,res)=>{process.env.AI_PROVIDER='openai';process.env.OPENAI_API_KEY='test-only-not-real';res.sendStatus(204);});
+host.post('/__test/disable-ai', (_req,res)=>{process.env.AI_PROVIDER='practice';delete process.env.OPENAI_API_KEY;res.sendStatus(204);});
 host.post('/__test/account-links', requireAuth, async (req, res) => {
   const user = (await User.findById((req as AuthRequest).userId))!;
   res.json({ reset: await issueAccountToken(user, 'reset'), verify: await issueAccountToken(user, 'verify') });

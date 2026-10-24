@@ -1,3 +1,4 @@
+import { aiDisclosure } from '../services/providerConsent.js';
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
@@ -10,6 +11,22 @@ import { AIUsage } from '../models/AIUsage.js';
 import { accountVersionFilter, clearSession, userView } from '../services/account.js';
 import { authLimit, validPassword } from './auth.js';
 const router = Router(); router.use(requireAuth);
+router.get('/ai-consent', async(req,res,next)=>{
+  try { const disclosure=aiDisclosure(); const user=await User.findById((req as AuthRequest).userId);
+    res.json({disclosure, accepted:!!disclosure && user?.aiConsent?.version===disclosure.version, hasGrant:!!user?.aiConsent, acceptedAt:user?.aiConsent?.acceptedAt});
+  } catch(error){next(error);}
+});
+router.post('/ai-consent', async(req,res,next)=>{
+  try { const disclosure=aiDisclosure();
+    if(!disclosure || req.body.version!==disclosure.version || req.body.accepted!==true){res.status(409).json({error:'AI provider details changed. Reload and review before accepting.'});return;}
+    const result=await User.updateOne({_id:(req as AuthRequest).userId,deletionRequestedAt:{$exists:false}},{$set:{aiConsent:{version:disclosure.version,acceptedAt:new Date(),provider:disclosure.provider,endpoint:disclosure.endpoint}}});
+    if(!result.matchedCount){res.sendStatus(401);return;} res.json({ok:true});
+  }catch(error){next(error);}
+});
+router.delete('/ai-consent',async(req,res,next)=>{
+  try{await User.updateOne({_id:(req as AuthRequest).userId},{$unset:{aiConsent:1}});res.json({ok:true});}catch(error){next(error);}
+});
+
 router.get('/sessions', async (req, res, next) => {
   try {
     const auth = req as AuthRequest;
@@ -70,7 +87,7 @@ router.get('/export', async (req, res, next) => {
         res.once('drain', drained); res.once('close', closed);
       });
     };
-    await write(JSON.stringify({ exportedAt: new Date(), user: userView(user) }).slice(0, -1) + ',"interviews":[');
+    await write(JSON.stringify({ exportedAt: new Date(), user: { ...userView(user), aiConsent: user?.aiConsent } }).slice(0, -1) + ',"interviews":[');
     let first = true;
     for await (const interview of Interview.find({ userId }).lean().cursor()) {
       if (res.destroyed) return;

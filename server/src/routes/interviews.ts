@@ -1,3 +1,4 @@
+import { requireAIConsent } from '../services/providerConsent.js';
 import { Router } from 'express';
 import mongoose from 'mongoose';
 import type { RequestHandler } from 'express';
@@ -12,6 +13,7 @@ const router = Router();
 router.use(requireAuth);
 const userId = (req: any) => (req as AuthRequest).userId;
 const makeSchema = z.object({
+  mode: z.enum(['ai','practice']).optional(),
   role: z.string().trim().min(2).max(100),
   type: z.enum(['Technical', 'Behavioral', 'HR']),
   difficulty: z.enum(['Beginner', 'Intermediate', 'Advanced']),
@@ -74,7 +76,8 @@ router.post('/', aiLimit, async (req, res, next) => {
   try {
     const parsed = makeSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: 'Choose a valid role, topic, type, difficulty and number of questions.' }); return; }
-    const input = { ...parsed.data, mode: interviewMode() };
+    const input = { ...parsed.data, mode: parsed.data.mode || interviewMode() };
+    if (input.mode === 'ai') await requireAIConsent(userId(req));
     await consumeQuota(userId(req), 'daily interview starts', quotaLimit('INTERVIEWS_PER_DAY', 20), 86400_000);
     if (input.mode === 'ai') await consumeAIQuota(userId(req));
     const id = new mongoose.Types.ObjectId();

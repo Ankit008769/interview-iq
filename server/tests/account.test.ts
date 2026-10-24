@@ -114,6 +114,8 @@ it('shares authentication limits in Mongo and supplies retry time',async()=>{
 });
 it('records rejected output tokens and unknown transport failures without recording candidate text',async()=>{
   const a=await register();vi.stubEnv('AI_PROVIDER','openai');vi.stubEnv('OPENAI_API_KEY','test-not-real');
+  const disclosure=(await a.agent.get('/api/account/ai-consent')).body.disclosure;
+  await a.agent.post('/api/account/ai-consent').send({version:disclosure.version,accepted:true}).expect(200);
   const call={usageContext:{userId:a.id},slot:'judge' as const,system:'secret candidate prompt',input:'secret answer',schema:z.object({ok:z.boolean()}),name:'test',promptVersion:'v1',maxOutputTokens:100};
   const fetch=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({id:'r',model:'resolved',status:'completed',output:[{type:'message',role:'assistant',content:[{type:'output_text',text:'not json'}]}],usage:{input_tokens:13,output_tokens:7}}),{headers:{'content-type':'application/json'}}));
   await expect(configuredProvider()!.structured(call)).rejects.toThrow('valid response');
@@ -122,4 +124,50 @@ it('records rejected output tokens and unknown transport failures without record
   await expect(configuredProvider()!.structured(call)).rejects.toThrow('valid response');
   const failed=await AIUsage.findOne({failure:'provider_error'}).lean();expect(failed).toMatchObject({status:'failed',inputTokens:null,outputTokens:null});
   expect(JSON.stringify(await AIUsage.find({}))).not.toContain('secret answer');expect(fetch).toHaveBeenCalledTimes(2);
+});
+
+it('blocks AI before quota/vendor work without explicit current consent and keeps practice available',async()=>{
+ const a=await register();vi.stubEnv('AI_PROVIDER','openai');vi.stubEnv('OPENAI_API_KEY','test-not-real');
+ const vendor=vi.spyOn(globalThis,'fetch').mockRejectedValue(new Error('must not send'));
+ await a.agent.post('/api/interviews').send(setup).expect(409);
+ expect(await AIUsage.countDocuments()).toBe(0);expect(vendor).not.toHaveBeenCalled();
+ const before=await a.agent.get('/api/account/ai-consent').expect(200);expect(before.body.accepted).toBe(false);expect(before.body.disclosure.provider).toBe('OpenAI');
+ await a.agent.post('/api/account/ai-consent').send({version:before.body.disclosure.version,accepted:false}).expect(409);
+ await a.agent.post('/api/interviews').send({...setup,mode:'practice'}).expect(201);expect(vendor).not.toHaveBeenCalled();
+});
+it('binds consent to provider configuration, supports withdrawal and excludes credentials from disclosure',async()=>{
+ const a=await register();vi.stubEnv('AI_PROVIDER','openai');vi.stubEnv('OPENAI_API_KEY','test-not-real');
+ const original=(await a.agent.get('/api/account/ai-consent')).body;
+ await a.agent.post('/api/account/ai-consent').send({version:original.disclosure.version,accepted:true}).expect(200);
+ expect((await a.agent.get('/api/account/ai-consent')).body.accepted).toBe(true);
+ vi.stubEnv('JUDGE_MODEL','changed-model');
+ expect((await a.agent.get('/api/account/ai-consent')).body.accepted).toBe(false);
+ await a.agent.post('/api/account/ai-consent').send({version:original.disclosure.version,accepted:true}).expect(409);
+ const changed=(await a.agent.get('/api/account/ai-consent')).body;expect(JSON.stringify(changed)).not.toContain('test-not-real');
+ await a.agent.post('/api/account/ai-consent').send({version:changed.disclosure.version,accepted:true}).expect(200);
+ await a.agent.delete('/api/account/ai-consent').expect(200);expect((await a.agent.get('/api/account/ai-consent')).body.hasGrant).toBe(false);
+});
+it('withdrawal blocks queued AI work while preserving the saved answer for later recovery',async()=>{
+ const a=await register();const started=await a.agent.post('/api/interviews').send(setup).expect(201);const id=started.body.interview._id;
+ await a.agent.post(`/api/interviews/${id}/answer`).send({answer:'An answer saved before withdrawing permission.',questionIndex:0,submissionId:'consent-test'}).expect(202);
+ await Interview.updateOne({_id:id},{$set:{mode:'ai'}});vi.stubEnv('AI_PROVIDER','openai');vi.stubEnv('OPENAI_API_KEY','test-not-real');
+ const disclosure=(await a.agent.get('/api/account/ai-consent')).body.disclosure;
+ await a.agent.post('/api/account/ai-consent').send({version:disclosure.version,accepted:true}).expect(200);
+ await a.agent.delete('/api/account/ai-consent').expect(200);
+ const vendor=vi.spyOn(globalThis,'fetch').mockRejectedValue(new Error('must not send'));
+ const {processNextInterviewJob}=await import('../src/services/interviewJobs.js');await processNextInterviewJob();
+ const saved=await Interview.findById(id);expect(saved?.processingState).toBe('failed');expect(saved?.turns).toHaveLength(1);expect(saved?.processingError).toContain('consent');
+ expect(vendor).not.toHaveBeenCalled();expect(await AIUsage.countDocuments()).toBe(0);
+});
+it('withdrawal between ledger creation and dispatch cancels the attempt without sending content',async()=>{
+ const a=await register();vi.stubEnv('AI_PROVIDER','openai');vi.stubEnv('OPENAI_API_KEY','test-not-real');
+ const disclosure=(await a.agent.get('/api/account/ai-consent')).body.disclosure;
+ await a.agent.post('/api/account/ai-consent').send({version:disclosure.version,accepted:true}).expect(200);
+ const create=AIUsage.create.bind(AIUsage);
+ vi.spyOn(AIUsage,'create').mockImplementationOnce(async(value:any)=>{
+   const record=await create(value);await User.updateOne({_id:a.id},{$unset:{aiConsent:1}});return record;
+ });
+ const vendor=vi.spyOn(globalThis,'fetch').mockRejectedValue(new Error('must not send'));
+ await expect(configuredProvider()!.structured({usageContext:{userId:a.id},slot:'judge',system:'private',input:'private',schema:z.object({ok:z.boolean()}),name:'test',promptVersion:'v1',maxOutputTokens:100})).rejects.toThrow('consent');
+ expect(vendor).not.toHaveBeenCalled();expect(await AIUsage.findOne({userId:a.id}).lean()).toMatchObject({status:'cancelled',inputTokens:0,outputTokens:0,failure:'consent_revoked'});
 });

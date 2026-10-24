@@ -1,3 +1,5 @@
+import { ConsentRequiredError } from './services/providerConsent.js';
+import { operationalEvent } from './services/monitoring.js';
 import express, { type ErrorRequestHandler } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -49,7 +51,8 @@ const handler: ErrorRequestHandler = (err, _req, res, _next) => {
     res.setHeader('Retry-After', Math.max(1, Math.ceil((err.resetAt.getTime() - Date.now()) / 1000)));
     res.status(429).json({ error: err.message, code: 'QUOTA_EXCEEDED', resetAt: err.resetAt.toISOString() }); return;
   }
-  console.error('[API]', err);
+  if (err instanceof ConsentRequiredError) { res.status(409).json({error:err.message,code:'AI_CONSENT_REQUIRED'}); return; }
+  operationalEvent('api_error', 'ERROR');
   res.status(500).json({ error: 'Request failed. Please retry; if it continues, check the backend logs.' });
 };
 app.use(handler);

@@ -1,8 +1,9 @@
 # Account lifecycle and usage tracking
 
 Implemented 24 October 2026. Live email delivery is intentionally disabled at the
-owner's request. These changes are pushed as source; deploying the new application
-image is a separate step. The backup schedule is already active in Google Cloud.
+owner's request. The account/usage release f3dd618 was deployed and live-tested on 24 October 2026.
+The backup schedule is active in Google Cloud. Subsequent consent and monitoring
+behavior is documented in MONITORING_AND_CONSENT.md.
 
 ## Account access
 

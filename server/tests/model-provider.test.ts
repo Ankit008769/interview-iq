@@ -47,3 +47,14 @@ it('validates compatible structured responses independently and sanitizes failur
   await expect(configuredProvider()!.structured(call)).rejects.toThrow('did not return a valid response');
   expect(fetch).toHaveBeenCalledTimes(1);
 });
+
+it('pins OpenAI to its disclosed endpoint despite SDK base URL environment overrides',()=>{
+ vi.stubEnv('AI_PROVIDER','openai');vi.stubEnv('OPENAI_API_KEY','test-not-real');vi.stubEnv('OPENAI_BASE_URL','https://unexpected.example');
+ expect(providerConfig().baseURL).toBe('https://api.openai.com/v1');
+});
+
+it('requires an account context for every production provider dispatch',async()=>{
+ vi.stubEnv('NODE_ENV','production');vi.stubEnv('AI_PROVIDER','openai');vi.stubEnv('OPENAI_API_KEY','test-not-real');
+ const fetch=vi.spyOn(globalThis,'fetch').mockRejectedValue(new Error('must not send'));
+ await expect(configuredProvider()!.structured(call)).rejects.toThrow('consent');expect(fetch).not.toHaveBeenCalled();
+});
