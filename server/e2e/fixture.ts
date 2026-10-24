@@ -93,6 +93,13 @@ host.post('/__test/fail', async (_req, res) => {
   await Interview.updateMany({ processingState: 'queued' }, { $set: { processingState: 'failed' } });
   res.sendStatus(204);
 });
+// Moves the caller's current question clock back, so time-up states can be tested without waiting.
+host.post('/__test/age-question', requireAuth, async (req, res) => {
+  const seconds = Number(req.query.seconds ?? 0);
+  await Interview.updateMany({ userId: (req as AuthRequest).userId, status: 'in_progress' },
+    { $set: { questionStartedAt: new Date(Date.now() - seconds * 1000) } });
+  res.sendStatus(204);
+});
 host.use(app);
 const server = host.listen(5101, '127.0.0.1');
 let closing = false;

@@ -22,6 +22,7 @@ const makeSchema = z.object({
   difficulty: z.enum(['Beginner', 'Intermediate', 'Advanced']),
   topic: z.string().trim().min(2).max(100),
   totalQuestions: z.number().int().min(2).max(5),
+  timeLimitSeconds: z.union([z.literal(120), z.literal(180), z.literal(300)]).optional(),
 });
 const answerSchema = z.object({
   answer: z.string().trim().min(10).max(3500),
@@ -39,6 +40,13 @@ const aiLimit: RequestHandler = async (req, _res, next) => {
   try { await consumeQuota(userId(req), 'interview requests', quotaLimit('INTERVIEW_WRITES_PER_15_MIN', 40), 900_000); next(); }
   catch (err) { next(err); }
 };
+// Pausing is cheap but still a write; it gets its own bucket so it cannot use up answer submissions.
+const timerLimit: RequestHandler = async (req, _res, next) => {
+  try { await consumeQuota(userId(req), 'timer changes', 60, 900_000); next(); }
+  catch (err) { next(err); }
+};
+// serverNow lets the browser correct for clock skew when showing the countdown.
+const view = (doc: InstanceType<typeof Interview>) => ({ interview: doc, mode: doc.mode ?? interviewMode(), serverNow: new Date() });
 
 router.get('/mode', (_req, res) => res.json({ mode: interviewMode() }));
 router.get('/dashboard', async (req, res, next) => {
@@ -93,8 +101,8 @@ router.post('/', aiLimit, async (req, res, next) => {
     const id = new mongoose.Types.ObjectId();
     const first = await generateQuestion({ ...input, usageContext: { userId: userId(req), interviewId: id.toString() }, turnIndex: 0, history: [] });
     if (!await User.exists({ _id: userId(req), deletionRequestedAt: { $exists: false } })) { res.sendStatus(401); return; }
-    const doc = await Interview.create({ _id: id, userId: userId(req), ...input, status: 'in_progress', currentQuestion: first.question, currentTopic: first.topic, currentQuestionId: first.questionId, currentQuestionGeneration: first.generation, turns: [] });
-    res.status(201).json({ interview: doc, mode: doc.mode ?? interviewMode() });
+    const doc = await Interview.create({ _id: id, userId: userId(req), ...input, status: 'in_progress', currentQuestion: first.question, currentTopic: first.topic, currentQuestionId: first.questionId, currentQuestionGeneration: first.generation, questionStartedAt: new Date(), pausedMs: 0, turns: [] });
+    res.status(201).json(view(doc));
   } catch (err) { next(err); }
 });
 router.get('/:id', async (req, res, next) => {
@@ -102,7 +110,7 @@ router.get('/:id', async (req, res, next) => {
     if (!mongoose.isValidObjectId(req.params.id)) { res.status(404).json({ error: 'Interview not found.' }); return; }
     const doc = await Interview.findOne({ _id: req.params.id, userId: userId(req) });
     if (!doc) { res.status(404).json({ error: 'Interview not found.' }); return; }
-    res.json({ interview: doc, mode: doc.mode ?? interviewMode() });
+    res.json(view(doc));
   } catch (err) { next(err); }
 });
 router.post('/:id/answer', aiLimit, async (req, res, next) => {
@@ -117,7 +125,7 @@ router.post('/:id/answer', aiLimit, async (req, res, next) => {
       if (replay.answer !== parsed.data.answer || replay.questionIndex !== parsed.data.questionIndex) {
         res.status(409).json({ error: 'This submission ID was used for a different answer. Reload the interview.' }); return;
       }
-      res.json({ interview: doc, mode: doc.mode ?? interviewMode(), replayed: true }); return;
+      res.json({ ...view(doc), replayed: true }); return;
     }
     if (doc.status !== 'in_progress') { res.status(409).json({ error: 'This interview is already complete.' }); return; }
     if (doc.turns.length !== parsed.data.questionIndex) {
@@ -126,20 +134,27 @@ router.post('/:id/answer', aiLimit, async (req, res, next) => {
     if (doc.processingState !== 'ready') {
       res.status(409).json({ error: 'Your previous answer is saved and is still being processed.' }); return;
     }
+    // Time on this question, excluding paused time; a paused clock stops at the moment it was paused.
+    const answeredAt = new Date();
+    const pausedMs = (doc.pausedMs ?? 0) + (doc.pausedAt ? answeredAt.getTime() - doc.pausedAt.getTime() : 0);
+    const elapsedSeconds = doc.questionStartedAt
+      ? Math.max(0, Math.round((answeredAt.getTime() - doc.questionStartedAt.getTime() - pausedMs) / 1000)) : undefined;
     const turn = { question: doc.currentQuestion, answer: parsed.data.answer, topic: doc.currentTopic,
-      answeredAt: new Date(), submissionId: parsed.data.submissionId, questionIndex: parsed.data.questionIndex,
-      questionId: doc.currentQuestionId, questionGeneration: doc.currentQuestionGeneration };
+      answeredAt, submissionId: parsed.data.submissionId, questionIndex: parsed.data.questionIndex,
+      questionId: doc.currentQuestionId, questionGeneration: doc.currentQuestionGeneration,
+      elapsedSeconds, pausedSeconds: doc.questionStartedAt ? Math.round(pausedMs / 1000) : undefined,
+      overTime: doc.timeLimitSeconds !== undefined && elapsedSeconds !== undefined ? elapsedSeconds > doc.timeLimitSeconds : undefined };
     const updated = await Interview.findOneAndUpdate(
       { _id: doc._id, userId: userId(req), status: 'in_progress',
         $or: [{ processingState: 'ready' }, { processingState: { $exists: false } }],
         [`turns.${parsed.data.questionIndex}`]: { $exists: false } },
       { $push: { turns: turn },
         $set: { processingState: 'queued', jobAttempts: 0, jobNextAttemptAt: new Date(), mode: doc.mode ?? interviewMode() },
-        $unset: { processingError: 1, jobLeaseToken: 1, jobLeaseUntil: 1 } },
+        $unset: { processingError: 1, jobLeaseToken: 1, jobLeaseUntil: 1, pausedAt: 1 } },
       { new: true, runValidators: true },
     );
     if (!updated) { res.status(409).json({ error: 'This answer was already submitted. Refresh the interview.' }); return; }
-    res.status(202).json({ interview: updated, mode: updated.mode ?? interviewMode() });
+    res.status(202).json(view(updated));
   } catch (err) { next(err); }
 });
 router.post('/:id/retry', aiLimit, async (req, res, next) => {
@@ -153,7 +168,37 @@ router.post('/:id/retry', aiLimit, async (req, res, next) => {
       const exists = await Interview.exists({ _id: req.params.id, userId: userId(req) });
       res.status(exists ? 409 : 404).json({ error: exists ? 'This interview is not awaiting a retry.' : 'Interview not found.' }); return;
     }
-    res.status(202).json({ interview: doc, mode: doc.mode ?? interviewMode() });
+    res.status(202).json(view(doc));
+  } catch (err) { next(err); }
+});
+// Pause stops a timed question's clock; resume adds the paused span to pausedMs. Both are idempotent.
+router.post('/:id/pause', timerLimit, async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) { res.status(404).json({ error: 'Interview not found.' }); return; }
+    const owner = { _id: req.params.id, userId: userId(req) };
+    const doc = await Interview.findOneAndUpdate({ ...owner, status: 'in_progress', processingState: 'ready',
+      timeLimitSeconds: { $exists: true }, pausedAt: { $exists: false } }, { $set: { pausedAt: new Date() } }, { new: true });
+    if (doc) { res.json(view(doc)); return; }
+    const existing = await Interview.findOne(owner);
+    if (!existing) { res.status(404).json({ error: 'Interview not found.' }); return; }
+    if (existing.pausedAt) { res.json(view(existing)); return; }
+    res.status(409).json({ error: 'Only a timed question that is on screen can be paused.' });
+  } catch (err) { next(err); }
+});
+router.post('/:id/resume', timerLimit, async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) { res.status(404).json({ error: 'Interview not found.' }); return; }
+    const owner = { _id: req.params.id, userId: userId(req) };
+    const existing = await Interview.findOne(owner);
+    if (!existing) { res.status(404).json({ error: 'Interview not found.' }); return; }
+    if (!existing.pausedAt) { res.json(view(existing)); return; }
+    const pausedFor = Math.max(0, Date.now() - existing.pausedAt.getTime());
+    // Matching the exact pausedAt makes a duplicate resume a no-op instead of counting the pause twice.
+    const doc = await Interview.findOneAndUpdate({ ...owner, pausedAt: existing.pausedAt },
+      { $set: { pausedMs: (existing.pausedMs ?? 0) + pausedFor }, $unset: { pausedAt: 1 } }, { new: true })
+      ?? await Interview.findOne(owner);
+    if (!doc) { res.status(404).json({ error: 'Interview not found.' }); return; }
+    res.json(view(doc));
   } catch (err) { next(err); }
 });
 // Ask for a second AI review of one rating. The worker does the review; a score can go up, down or stay.

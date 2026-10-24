@@ -1,5 +1,5 @@
 export interface User { id: string; name: string; email: string; emailVerified?: boolean }
-export interface Turn { question: string; answer: string; topic: string; answeredAt: string }
+export interface Turn { question: string; answer: string; topic: string; answeredAt: string; elapsedSeconds?: number; pausedSeconds?: number; overTime?: boolean }
 export interface Feedback {
   source: 'ai' | 'practice'; score: number | null; summary: string;
   strengths: string[]; improvements: string[]; nextSteps: string[];
@@ -28,6 +28,7 @@ export interface Interview {
   turns: Turn[]; createdAt: string; completedAt?: string; feedback?: Feedback;
   challenges?: ScoreChallenge[];
   rewrites?: AnswerRewrite[];
+  timeLimitSeconds?: number; questionStartedAt?: string; pausedAt?: string; pausedMs?: number;
   answered?: number;
   processingState?: 'ready' | 'queued' | 'processing' | 'failed';
   processingError?: string;

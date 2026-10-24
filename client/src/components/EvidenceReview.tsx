@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { AnswerRewrite, CriterionRating, Feedback, ScoreChallenge, Turn } from '../lib/api';
+import { TurnTiming } from './Timing';
 
 export function RubricGuide({ rubric }: { rubric: NonNullable<Feedback['rubric']> }) {
   return <details className="card rubric-guide">
@@ -86,15 +87,16 @@ function StrongerVersion({ rewrite, onRewrite }: { rewrite?: AnswerRewrite; onRe
   </div>;
 }
 
-export function EvidenceReview({ turn, index, criteria, challenges = [], canChallenge = false, onChallenge, rewrite, onRewrite }:
+export function EvidenceReview({ turn, index, criteria, challenges = [], canChallenge = false, onChallenge, rewrite, onRewrite, limit }:
   { turn: Turn; index: number; criteria: CriterionRating[]; challenges?: ScoreChallenge[]; canChallenge?: boolean; onChallenge?: ChallengeRequest;
-    rewrite?: AnswerRewrite; onRewrite?: () => Promise<void> }) {
+    rewrite?: AnswerRewrite; onRewrite?: () => Promise<void>; limit?: number }) {
   const [selected, setSelected] = useState<string | null>(null);
   const evidence = criteria.find(c => c.criterionId === selected)?.evidence;
   const verified = evidence && turn.answer.slice(evidence.start, evidence.end) === evidence.quote;
   return <article className="card review-turn evidence-review">
     <span className="question-label">QUESTION {index + 1} · {turn.topic}</span>
     <h4>{turn.question}</h4>
+    <TurnTiming turn={turn} limit={limit} />
     <div className="review-answer" aria-label={`Your answer to question ${index + 1}`}>
       {verified ? <>{turn.answer.slice(0, evidence.start)}<mark>{evidence.quote}</mark>{turn.answer.slice(evidence.end)}</> : turn.answer}
     </div>

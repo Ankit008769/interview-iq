@@ -41,9 +41,11 @@ export async function processNextInterviewJob(): Promise<boolean> {
     const finished = doc.turns.length >= doc.totalQuestions;
     const result = finished
       ? { status: 'completed', completedAt: new Date(), feedback: await evaluateInterview(context) }
-      : await generateQuestion({ ...context, turnIndex: doc.turns.length }).then(q => ({ currentQuestion: q.question, currentTopic: q.topic, currentQuestionId: q.questionId, currentQuestionGeneration: q.generation }));
+      : await generateQuestion({ ...context, turnIndex: doc.turns.length }).then(q => ({ currentQuestion: q.question, currentTopic: q.topic,
+        currentQuestionId: q.questionId, currentQuestionGeneration: q.generation, questionStartedAt: new Date(), pausedMs: 0 }));
+    // The question clock starts when the next question is ready, so processing time is never counted.
     await Interview.updateOne(fence, { $set: { ...result, processingState: 'ready' },
-      $unset: { jobLeaseToken: 1, jobLeaseUntil: 1, jobNextAttemptAt: 1, processingError: 1 } }, { runValidators: true });
+      $unset: { jobLeaseToken: 1, jobLeaseUntil: 1, jobNextAttemptAt: 1, processingError: 1, pausedAt: 1 } }, { runValidators: true });
   } catch (err) {
     if (err instanceof ConsentRequiredError) {
       await Interview.updateOne(fence, {$set:{processingState:'failed',processingError:err.message},$unset:{jobLeaseToken:1,jobLeaseUntil:1}});

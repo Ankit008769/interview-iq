@@ -15,6 +15,9 @@ export type AnswerTurn = {
   topic: string;
   answeredAt: Date;
   questionGeneration?: GenerationMetadata;
+  elapsedSeconds?: number;
+  pausedSeconds?: number;
+  overTime?: boolean;
 };
 export type InterviewFeedback = {
   source: 'ai' | 'practice';
@@ -71,6 +74,10 @@ export interface IInterview {
   currentTopic: string;
   currentQuestionId?: string;
   currentQuestionGeneration?: GenerationMetadata;
+  timeLimitSeconds?: number;
+  questionStartedAt?: Date;
+  pausedAt?: Date;
+  pausedMs: number;
   turns: AnswerTurn[];
   feedback?: InterviewFeedback;
   challenges: ScoreChallenge[];
@@ -122,6 +129,9 @@ const turnSchema = new Schema<AnswerTurn>({
   topic: { type: String, required: true },
   answeredAt: { type: Date, required: true, default: Date.now },
   questionGeneration: { type: generationSchema },
+  elapsedSeconds: { type: Number, min: 0 },
+  pausedSeconds: { type: Number, min: 0 },
+  overTime: { type: Boolean },
 }, { _id: false });
 
 const feedbackSchema = new Schema<InterviewFeedback>({
@@ -155,6 +165,10 @@ const interviewSchema = new Schema<IInterview>({
   currentTopic: { type: String, required: true },
   currentQuestionId: { type: String },
   currentQuestionGeneration: { type: generationSchema },
+  timeLimitSeconds: { type: Number, enum: [120, 180, 300] },
+  questionStartedAt: { type: Date },
+  pausedAt: { type: Date },
+  pausedMs: { type: Number, default: 0, min: 0 },
   turns: { type: [turnSchema], default: [] },
   feedback: { type: feedbackSchema },
   challenges: { type: [challengeSchema], default: [] },

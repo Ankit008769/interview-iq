@@ -78,6 +78,7 @@ docs                   Next stages and architecture
 | POST | `/api/interviews/:id/retry` | Requeue failed processing of an already saved answer |
 | POST | `/api/interviews/:id/challenges` | Ask for a second AI review of one rating (up to 3 per interview; see [score challenges](docs/SCORE_CHALLENGES.md)) |
 | POST | `/api/interviews/:id/rewrites` | Build a stronger version of one answer from the candidate's own words (see [answer rewrites](docs/ANSWER_REWRITES.md)) |
+| POST | `/api/interviews/:id/pause` · `/resume` | Stop or restart a timed question's clock (see [timed rounds](docs/TIMED_ROUNDS.md)) |
 
 All interview endpoints require authentication and enforce interview ownership. Submission checks prevent duplicate additions to the same question.
 

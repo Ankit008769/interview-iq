@@ -14,10 +14,11 @@ export function Setup() {
   const [difficulty,setDifficulty]=useState<typeof difficulties[number]>('Intermediate');
   const [topic,setTopic]=useState(params.get('topic')||'DSA');
   const [totalQuestions,setTotalQuestions]=useState(3);
+  const [timeLimit,setTimeLimit]=useState<number|null>(null);
   const [loading,setLoading]=useState(false); const [error,setError]=useState('');
   const [consented,setConsented]=useState(false);const [aiAvailable,setAIAvailable]=useState(false);const [useAI,setUseAI]=useState(false);
   async function create(e:FormEvent) {e.preventDefault();setLoading(true);setError('');
-    try {const d=await api<{interview:Interview;mode:Mode}>('/interviews',{method:'POST',body:JSON.stringify({mode:useAI?'ai':'practice',role,type,difficulty,topic: type==='Technical'?topic:type==='Behavioral'?'Behavioral':'General',totalQuestions})});navigate(`/interview/${d.interview._id}`);}
+    try {const d=await api<{interview:Interview;mode:Mode}>('/interviews',{method:'POST',body:JSON.stringify({mode:useAI?'ai':'practice',role,type,difficulty,topic: type==='Technical'?topic:type==='Behavioral'?'Behavioral':'General',totalQuestions,...(timeLimit?{timeLimitSeconds:timeLimit}:{})})});navigate(`/interview/${d.interview._id}`);}
     catch(err){setError((err as Error).message);}finally{setLoading(false);}
   }
   return <div className="page-enter setup-page"><Link to="/dashboard" className="back-link"><ArrowLeft size={16}/> Back to dashboard</Link><div className="page-heading"><div><span className="eyebrow"><Sparkles size={14}/> PERSONALIZE YOUR EXPERIENCE</span><h1>Set up your interview</h1><p>Tell us what you'd like to practice. We'll tailor the session to you.</p></div></div>
@@ -34,6 +35,10 @@ export function Setup() {
       <div className="line"/>
       <div className="setup-label"><span className="num-pill">04</span><div><h3>Session length</h3><p>Start small. You'll build up over time.</p></div></div>
       <div className="segmented count-select">{[2,3,5].map(v=><button type="button" key={v} onClick={()=>setTotalQuestions(v)} className={totalQuestions===v?'active':''}>{v} questions</button>)}</div>
+      <div className="line"/>
+      <div className="setup-label"><span className="num-pill">05</span><div><h3>Time per question</h3><p>Practise under real interview pressure, or take your time.</p></div></div>
+      <div className="segmented timing-select" role="group" aria-label="Time per question">{([null,120,180,300] as const).map(v=><button type="button" key={v??0} aria-pressed={timeLimit===v} onClick={()=>setTimeLimit(v)} className={timeLimit===v?'active':''}>{v?`${v/60} min`:'Untimed'}</button>)}</div>
+      <p className="timing-note">{timeLimit?`A countdown runs for each question, up to ${totalQuestions*timeLimit/60} minutes in total. You can pause it, and you can still submit after time runs out; your results show how long each answer took.`:'No countdown. Your results still show how long each answer took.'}</p>
       <div className="line"/><AIConsent onChange={(ready,available)=>{setConsented(ready);setAIAvailable(available);}}/>
       {aiAvailable&&<label className="consent-check"><input type="checkbox" checked={useAI} onChange={e=>setUseAI(e.target.checked)}/> Use AI for this interview (requires permission above)</label>}
       <p>{useAI?'AI coaching selected.':'Practice selected: no provider calls and no automated score.'}</p>
