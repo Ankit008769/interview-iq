@@ -3,7 +3,8 @@ import type { RunnerResponse } from './grade.js';
 
 // The runner is a separate service. On Cloud Run it only accepts calls signed with the app service account's
 // identity token (RUNNER_AUTH=google); locally it listens on loopback (RUNNER_AUTH=none, or a shared
-// RUNNER_TOKEN for a runner on another machine).
+// RUNNER_TOKEN for a runner on another machine). RUNNER_AUTH=bearer with RUNNER_BEARER_TOKEN lets an operator
+// check the deployed runner with their own identity token (gcloud auth print-identity-token).
 export class RunnerUnavailableError extends Error {}
 export const runnerUrl = () => process.env.RUNNER_URL?.replace(/\/+$/, '') || '';
 export const runnerConfigured = () => Boolean(runnerUrl());
@@ -13,6 +14,7 @@ let cached: { token: string; audience: string; until: number } | undefined;
 async function authHeaders(): Promise<Record<string, string>> {
   const auth = process.env.RUNNER_AUTH || 'none';
   if (auth === 'token') return { 'x-runner-token': process.env.RUNNER_TOKEN ?? '' };
+  if (auth === 'bearer') return { authorization: `Bearer ${process.env.RUNNER_BEARER_TOKEN ?? ''}` };
   if (auth !== 'google') return {};
   const audience = runnerUrl();
   if (!cached || cached.audience !== audience || cached.until < Date.now()) {

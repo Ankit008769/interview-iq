@@ -127,3 +127,10 @@ cd runner && RUNNER_MODE=local-unsafe PORT=8090 node server.mjs
 Then start the app with `RUNNER_URL=http://127.0.0.1:8090` and `RUNNER_AUTH=none`. Languages whose tools are
 missing (Java on this laptop) show as unavailable. `RUNNER_AUTH=token` with `RUNNER_TOKEN` is available for a
 runner on another machine.
+
+To check the deployed runner from a laptop, use your own identity token (you need `roles/run.invoker` on it;
+project owners have it):
+
+```bash
+RUNNER_URL=https://interview-iq-runner-341474411884.asia-south1.run.app RUNNER_AUTH=bearer RUNNER_BEARER_TOKEN="$(gcloud auth print-identity-token)" npm run coding:verify
+```
