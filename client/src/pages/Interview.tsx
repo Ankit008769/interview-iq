@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, BrainCircuit, CircleCheck, Clock3, Info, Send, Sparkles, UserRound } from 'lucide-react';
-import { api, LANGUAGE_LABELS, SPEECH_LANG, type Interview as InterviewModel, type Mode } from '../lib/api';
+import { api, LANGUAGE_LABELS, SPEECH_LANG, STYLE_LABELS, type Interview as InterviewModel, type Mode } from '../lib/api';
 import { LoadingScreen } from '../components/Layout';
 import { PausedCard, QuestionTimer, clock, useQuestionElapsed } from '../components/Timing';
 import { ReadAloud, VoiceAnswer } from '../components/Voice';
@@ -54,7 +54,7 @@ export function InterviewRoom() {
   const current=Math.min(interview.turns.length+1, interview.totalQuestions);
   const pct=Math.min(100,Math.round((interview.turns.length/interview.totalQuestions)*100));
   return <div className="page-enter interview-page">
-    <div className="interview-head"><Link className="back-link" to="/dashboard"><ArrowLeft size={16}/> Dashboard</Link><div className="interview-live"><span className="live-circle"/> {mode==='ai'?'AI interview':'Guided practice'} <span className="session-divider">·</span> {interview.type}{interview.language&&interview.language!=='en'&&<><span className="session-divider">·</span> <span lang={SPEECH_LANG[interview.language]}>{LANGUAGE_LABELS[interview.language]}</span></>}</div></div>
+    <div className="interview-head"><Link className="back-link" to="/dashboard"><ArrowLeft size={16}/> Dashboard</Link><div className="interview-live"><span className="live-circle"/> {interview.purpose==='drill'?'Practice drill':mode==='ai'?'AI interview':'Guided practice'} <span className="session-divider">·</span> {interview.type}{interview.style&&interview.style!=='general'&&<><span className="session-divider">·</span> {STYLE_LABELS[interview.style]} style</>}{interview.language&&interview.language!=='en'&&<><span className="session-divider">·</span> <span lang={SPEECH_LANG[interview.language]}>{LANGUAGE_LABELS[interview.language]}</span></>}</div></div>
     <div className="page-heading"><div><h1>{interview.role}</h1><p>{interview.topic} · {interview.difficulty} · Question {current} of {interview.totalQuestions}{limit?` · ${clock(limit)} per question`:''}</p></div><span className="status-chip"><Clock3 size={14}/> In progress</span></div>
     <div className="progress-top"><span>Interview progress</span><b>{pct}% complete</b></div><div className="progress-track"><div style={{width:`${pct}%`}}/></div>
     <div className="interview-layout"><section className="interview-main">

@@ -198,10 +198,11 @@ export function pickPracticeQuestion(input: { type: InterviewType; topic: string
 
 // Most recent first: each interview's current question, then its answered turns newest to oldest.
 // The candidate's most recent questions from earlier interviews, newest first, so generated questions stay fresh.
+// Daily drills revisit the same skills often, so the window covers the last 20 interviews.
 // Questions removed with a deleted document are skipped.
-export async function recentQuestionTexts(userId: string, excludeInterviewId?: string, limit = 20): Promise<string[]> {
+export async function recentQuestionTexts(userId: string, excludeInterviewId?: string, limit = 50): Promise<string[]> {
   const docs = await Interview.find({ userId: new mongoose.Types.ObjectId(userId), ...(excludeInterviewId ? { _id: { $ne: excludeInterviewId } } : {}) })
-    .sort({ createdAt: -1, _id: -1 }).limit(10).select('turns.question').lean();
+    .sort({ createdAt: -1, _id: -1 }).limit(20).select('turns.question').lean();
   const seen = new Set<string>();
   return docs.flatMap(d => [...d.turns].reverse().map(t => t.question))
     .filter(q => q !== REMOVED_QUESTION && !seen.has(q) && Boolean(seen.add(q))).slice(0, limit);

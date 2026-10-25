@@ -7,6 +7,7 @@ import { Interview } from '../src/models/Interview.js';
 import { AccountToken, AuthSession, AccountDeletion } from '../src/models/Account.js';
 import { AIUsage } from '../src/models/AIUsage.js';
 import { CandidateDocument } from '../src/models/CandidateDocument.js';
+import { SkillState, StudyPlan } from '../src/models/Learning.js';
 import { QuotaBucket } from '../src/services/quotas.js';
 import { issueAccountToken, processAccountDeletions, tokenHash } from '../src/services/account.js';
 import * as mail from '../src/services/accountMail.js';
@@ -87,7 +88,10 @@ it('exports only owned data and reports unknown usage separately',async()=>{
   await AIUsage.create([{userId:a.id,status:'failed',inputTokens:12,outputTokens:4},{userId:a.id},{userId:b.id,inputTokens:9000,outputTokens:9000}]);
   await AIUsage.collection.updateMany({status:'started'},{$unset:{cost:1}});
   await a.agent.post('/api/documents').send(resume).expect(201);await b.agent.post('/api/documents').send({...resume,title:'Other resume'}).expect(201);
+  await SkillState.create([{userId:a.id,skillId:'technical.depth',mean:3,variance:0.5,observations:1,card:{due:new Date()},history:[],basisAt:new Date()},{userId:b.id,skillId:'technical.depth',mean:3,variance:0.5,observations:1,card:{due:new Date()},history:[],basisAt:new Date()}]);await StudyPlan.create([{userId:a.id,interviewDate:new Date(Date.now()+20*86400000),focusTypes:['Technical'],dailyMinutes:20},{userId:b.id,interviewDate:new Date(Date.now()+20*86400000),focusTypes:['Technical'],dailyMinutes:20}]);
   const exported=await a.agent.get('/api/account/export').expect(200);
+  expect(exported.body.skills).toHaveLength(1);expect(exported.body.skills[0]).toMatchObject({skillId:'technical.depth',mean:3});
+  expect(exported.body.studyPlan).toMatchObject({focusTypes:['Technical'],dailyMinutes:20});
   expect(exported.body.interviews).toHaveLength(1);expect(exported.body.usage).toHaveLength(2);
   expect(exported.body.documents).toHaveLength(1);expect(exported.body.documents[0]).toMatchObject({title:'My resume',text:resume.text});
   expect(exported.body.user.id).toBe(a.id);expect(JSON.stringify(exported.body)).not.toContain('passwordHash');expect(JSON.stringify(exported.body)).not.toContain(b.id);
@@ -98,6 +102,7 @@ it('exports only owned data and reports unknown usage separately',async()=>{
 it('deletion revokes access immediately, retries cleanup and removes late writes using receipts',async()=>{
   const a=await register(), b=await register();await a.agent.post('/api/interviews').send(setup).expect(201);
   await a.agent.post('/api/documents').send(resume).expect(201);await b.agent.post('/api/documents').send(resume).expect(201);
+  await SkillState.create([{userId:a.id,skillId:'technical.depth',mean:3,variance:0.5,observations:1,card:{due:new Date()},history:[],basisAt:new Date()},{userId:b.id,skillId:'technical.depth',mean:3,variance:0.5,observations:1,card:{due:new Date()},history:[],basisAt:new Date()}]);await StudyPlan.create([{userId:a.id,interviewDate:new Date(Date.now()+20*86400000),focusTypes:['Technical'],dailyMinutes:20},{userId:b.id,interviewDate:new Date(Date.now()+20*86400000),focusTypes:['Technical'],dailyMinutes:20}]);
   await AIUsage.create({userId:a.id});await issueAccountToken((await User.findById(a.id))!,'reset');
   await a.agent.post('/api/account/delete').send({password,confirmation:'wrong'}).expect(400);
   await a.agent.post('/api/account/delete').send({password,confirmation:'DELETE'}).expect(202);
@@ -108,8 +113,8 @@ it('deletion revokes access immediately, retries cleanup and removes late writes
   await expect(processAccountDeletions(new Date(Date.now()+61000))).rejects.toThrow('temporary DB failure');
   expect(await User.findById(a.id)).not.toBeNull();
   await processAccountDeletions(new Date(Date.now()+61000));expect(await User.findById(a.id)).toBeNull();
-  for(const model of [Interview,CandidateDocument,AIUsage,AuthSession,AccountToken] as any[]) expect(await model.countDocuments({userId:a.id})).toBe(0);
-  expect(await CandidateDocument.countDocuments({userId:b.id})).toBe(1);
+  for(const model of [Interview,CandidateDocument,SkillState,StudyPlan,AIUsage,AuthSession,AccountToken] as any[]) expect(await model.countDocuments({userId:a.id})).toBe(0);
+  expect(await CandidateDocument.countDocuments({userId:b.id})).toBe(1);expect(await SkillState.countDocuments({userId:b.id})).toBe(1);expect(await StudyPlan.countDocuments({userId:b.id})).toBe(1);
   expect(await QuotaBucket.countDocuments({_id:{$regex:`^${a.id}:`}})).toBe(0);
   expect(await AccountDeletion.countDocuments({userId:a.id})).toBe(1);
   await AIUsage.create({userId:a.id});await processAccountDeletions(new Date(Date.now()+122000));expect(await AIUsage.countDocuments({userId:a.id})).toBe(0);

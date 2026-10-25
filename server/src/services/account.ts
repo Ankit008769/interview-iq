@@ -5,6 +5,7 @@ import { User } from '../models/User.js';
 import { Interview } from '../models/Interview.js';
 import { AIUsage } from '../models/AIUsage.js';
 import { CandidateDocument } from '../models/CandidateDocument.js';
+import { SkillState, StudyPlan } from '../models/Learning.js';
 import { QuotaBucket } from './quotas.js';
 import { replicateDeletionReceipt } from './deletionLedger.js';
 export const accountVersionFilter = (version: number) => version === 0 ? { $or: [{authVersion:0}, {authVersion:{$exists:false}}] } : {authVersion:version};
@@ -47,6 +48,8 @@ export async function processAccountDeletions(now = new Date()) {
     const userId = receipt.userId;
     await Interview.deleteMany({ userId });
     await CandidateDocument.deleteMany({ userId });
+    await SkillState.deleteMany({ userId });
+    await StudyPlan.deleteMany({ userId });
     await AIUsage.deleteMany({ userId });
     await AuthSession.deleteMany({ userId });
     await AccountToken.deleteMany({ userId });

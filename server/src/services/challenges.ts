@@ -6,6 +6,7 @@ import { operationalEvent } from './monitoring.js';
 import { ConsentRequiredError } from './providerConsent.js';
 import { consumeAIQuota, QuotaError } from './quotas.js';
 import { workLeaseMs } from './providerConfig.js';
+import { refreshSkills } from './learning.js';
 
 export const MAX_CHALLENGES_PER_INTERVIEW = 3;
 export const MAX_CHALLENGE_ATTEMPTS = 3;
@@ -55,7 +56,11 @@ export async function processNextChallengeJob(): Promise<boolean> {
     }
     const result = await Interview.updateOne(fence, { $set: set,
       $unset: { ...unlock, 'challenges.$[ch].error': 1, 'challenges.$[ch].nextAttemptAt': 1 } }, { arrayFilters });
-    if (result.modifiedCount && decision === 'revised') await Interview.updateOne({ _id: doc._id }, recomputeScore);
+    if (result.modifiedCount && decision === 'revised') {
+      await Interview.updateOne({ _id: doc._id }, recomputeScore);
+      // A revised rating changes the evidence behind the learner's skill estimates.
+      await refreshSkills(doc.userId).catch(() => operationalEvent('skill_update_failure', 'WARNING'));
+    }
   } catch (err) {
     if (err instanceof ConsentRequiredError) {
       await Interview.updateOne(fence, { $set: { 'challenges.$[ch].state': 'failed', 'challenges.$[ch].error': err.message }, $unset: unlock }, { arrayFilters: [mine] });

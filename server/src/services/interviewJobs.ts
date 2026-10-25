@@ -9,6 +9,7 @@ import { processNextChallengeJob } from './challenges.js';
 import { User } from '../models/User.js';
 import { groundingDocuments } from './documents.js';
 import { workLeaseMs } from './providerConfig.js';
+import { refreshSkills } from './learning.js';
 
 export const MAX_JOB_ATTEMPTS = 3;
 const failureMessage = 'Your answer is saved. Processing could not finish. Please retry.';
@@ -37,7 +38,7 @@ export async function processNextInterviewJob(): Promise<boolean> {
       await Interview.deleteOne({ _id: doc._id }); return true;
     }
     if (doc.mode === 'ai') await consumeAIQuota(doc.userId.toString());
-    const context = { role: doc.role, type: doc.type, difficulty: doc.difficulty, language: doc.language,
+    const context = { role: doc.role, type: doc.type, difficulty: doc.difficulty, language: doc.language, style: doc.style, focusSkills: doc.focusSkills,
       topic: doc.topic, history: doc.turns, mode: doc.mode, usageContext: { userId: doc.userId.toString(), interviewId: doc.id } };
     const finished = doc.turns.length >= doc.totalQuestions;
     // Documents never go to the judge; only questions are tailored.
@@ -56,6 +57,10 @@ export async function processNextInterviewJob(): Promise<boolean> {
           ...(question && !question.grounding ? { currentQuestionGrounding: 1 } : {}) } }, { runValidators: true });
     if (!saved.matchedCount && documents.length) await Interview.updateOne(fence, { $set: { processingState: 'queued', jobNextAttemptAt: new Date() },
       $inc: { jobAttempts: -1 }, $unset: { jobLeaseToken: 1, jobLeaseUntil: 1 } });
+    // Skill estimates follow from the saved scores; a failed rebuild is retried when the learner next opens Learn.
+    if (saved.matchedCount && !question && doc.mode === 'ai') {
+      await refreshSkills(doc.userId).catch(() => operationalEvent('skill_update_failure', 'WARNING'));
+    }
   } catch (err) {
     if (err instanceof ConsentRequiredError) {
       await Interview.updateOne(fence, {$set:{processingState:'failed',processingError:err.message},$unset:{jobLeaseToken:1,jobLeaseUntil:1}});

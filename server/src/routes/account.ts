@@ -10,6 +10,7 @@ import { AuthSession, AccountToken, AccountDeletion } from '../models/Account.js
 import { replicateDeletionReceipt } from '../services/deletionLedger.js';
 import { AIUsage } from '../models/AIUsage.js';
 import { CandidateDocument } from '../models/CandidateDocument.js';
+import { SkillState, StudyPlan } from '../models/Learning.js';
 import { accountVersionFilter, clearSession, userView } from '../services/account.js';
 import { authLimit, validPassword } from './auth.js';
 const router = Router(); router.use(requireAuth);
@@ -113,7 +114,13 @@ router.get('/export', async (req, res, next) => {
       if (res.destroyed) return;
       await write((first ? '' : ',') + JSON.stringify(document)); first = false;
     }
-    await write('],"usage":['); first = true;
+    await write('],"skills":['); first = true;
+    for await (const skill of SkillState.find({ userId }).lean().cursor()) {
+      if (res.destroyed) return;
+      await write((first ? '' : ',') + JSON.stringify(skill)); first = false;
+    }
+    await write('],"studyPlan":' + JSON.stringify(await StudyPlan.findOne({ userId }).lean()));
+    await write(',"usage":['); first = true;
     for await (const usage of AIUsage.find({ userId }).lean().cursor()) {
       if (res.destroyed) return;
       await write((first ? '' : ',') + JSON.stringify(usage)); first = false;

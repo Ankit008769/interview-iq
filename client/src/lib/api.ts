@@ -43,12 +43,35 @@ export interface Interview {
   starChecks?: StarCheck[];
   timeLimitSeconds?: number; questionStartedAt?: string; pausedAt?: string; pausedMs?: number;
   language?: InterviewLanguage;
+  style?: InterviewStyle;
+  purpose?: 'interview' | 'drill';
+  focusSkills?: string[];
   answered?: number;
   processingState?: 'ready' | 'queued' | 'processing' | 'failed';
   processingError?: string;
   jobNextAttemptAt?: string;
 }
 export type InterviewLanguage = 'en' | 'hi' | 'hinglish';
+export type InterviewStyle = 'general' | 'product' | 'services' | 'startup';
+export const STYLE_LABELS: Record<InterviewStyle, string> = { general: 'General', product: 'Product company', services: 'IT services', startup: 'Startup' };
+export type InterviewType = 'Technical' | 'Behavioral' | 'HR';
+export type SkillLevel = 'Needs work' | 'Developing' | 'Proficient' | 'Strong';
+export type SkillView = { id: string; label: string; kind: 'topic' | 'competency'; type: InterviewType; foundations: string[] } & ({ practised: false } | {
+  practised: true; mean: number; sd: number; lower: number; upper: number; level: SkillLevel; lowConfidence: boolean;
+  observations: number; lastObservedAt: string; due: string; isDue: boolean; history: { at: string; mean: number }[] });
+export interface DrillConfig { mode: 'ai'; purpose: 'drill'; role: string; type: InterviewType; topic: string; difficulty: Interview['difficulty'];
+  totalQuestions: number; timeLimitSeconds: number; focusSkills: string[] }
+export interface Drill { skillId: string; skillLabel: string; kind: 'retest' | 'weakest' | 'foundation' | 'baseline' | 'chosen'; reason: string; config: DrillConfig }
+export interface StudyPlan { interviewDate: string; daysLeft: number; focusTypes: InterviewType[]; dailyMinutes: 10 | 20 | 30 }
+export interface LearningOverview {
+  aiAvailable: boolean; readiness: number | null; readinessByType: Record<InterviewType, number | null>; plan: StudyPlan | null;
+  drill: Drill | null; skills: SkillView[]; dueCount: number; upcoming: { skillId: string; label: string; due: string }[];
+  streak: { days: number; practisedToday: boolean };
+}
+export interface SkillChange { skillId: string; label: string; from: number; to: number; change: number; sinceFirstPractice: boolean }
+export interface ProgressReport { weeks: { start: string; end: string; drills: number; interviews: number; averageScore: number | null }[]; gains: SkillChange[]; declines: SkillChange[] }
+// The learner's own time zone decides what counts as today for streaks and the interview countdown.
+export const timeZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata'; } catch { return 'Asia/Kolkata'; } };
 export const LANGUAGE_LABELS: Record<InterviewLanguage, string> = { en: 'English', hi: 'हिन्दी (Hindi)', hinglish: 'Hinglish' };
 // Browser speech language for reading questions aloud; Hinglish is Roman script, so an Indian English voice reads it best.
 export const SPEECH_LANG: Record<InterviewLanguage, string | undefined> = { en: undefined, hi: 'hi-IN', hinglish: 'en-IN' };
