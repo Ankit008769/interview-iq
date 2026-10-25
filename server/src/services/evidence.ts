@@ -4,10 +4,18 @@ import { rubricFor } from './rubrics.js';
 
 const ratingFields = { score: z.number().int().min(0).max(5).nullable(),
   quote: z.string().nullable(), rationale: z.string().max(600), improvement: z.string().max(400).nullable() };
+// Per-answer coaching that needs no quote: a verdict on the answer, what a strong answer to this question covers
+// (knowledge about the question, never claims about the candidate) and one tip. Overall feedback for the session;
+// each strength must quote an answer and is dropped otherwise.
+export const VERDICTS = ['correct', 'partly_correct', 'incorrect', 'not_answered'] as const;
+const reviewFields = { verdict: z.enum(VERDICTS), verdictReason: z.string().max(300), keyPoints: z.array(z.string().max(220)).min(2).max(4), tip: z.string().max(300) };
+export const overallSchema = z.object({ summary: z.string().max(600), strengths: z.array(z.object({ text: z.string().max(220), quote: z.string() })).max(3),
+  improvements: z.array(z.string().max(220)).min(1).max(3), nextSteps: z.array(z.string().max(220)).min(1).max(3) });
 export const evidenceResponseSchema = z.object({ answers: z.array(z.object({
   questionIndex: z.number().int().min(0).max(4),
   criteria: z.array(z.object({ criterionId: z.string(), ...ratingFields })).min(4).max(5),
-})).min(1).max(5) });
+  ...z.object(reviewFields).partial().shape,
+})).min(1).max(5), overall: overallSchema.optional() });
 export const ratingResponseSchema = z.object(ratingFields);
 // The schema sent with a scoring request names this rubric's criteria and requires each answer and criterion once,
 // so constrained decoding (local models) cannot produce unknown IDs or the wrong count.
@@ -16,7 +24,8 @@ export function evidenceSchemaFor(type: InterviewType, turns: number) {
   return z.object({ answers: z.array(z.object({
     questionIndex: z.number().int().min(0).max(turns - 1),
     criteria: z.array(z.object({ criterionId: z.enum(ids), ...ratingFields })).length(ids.length),
-  })).length(turns) });
+    ...reviewFields,
+  })).length(turns), overall: overallSchema });
 }
 export interface CriterionRating {
   criterionId: string; label: string; score: number | null;
@@ -24,7 +33,8 @@ export interface CriterionRating {
   evidence: { quote: string; start: number; end: number } | null;
   revisedBy?: string;
 }
-export interface AnswerEvaluation { questionIndex: number; criteria: CriterionRating[] }
+export type AnswerReview = { verdict: typeof VERDICTS[number]; reason: string; keyPoints: string[]; tip: string };
+export interface AnswerEvaluation { questionIndex: number; criteria: CriterionRating[]; review?: AnswerReview }
 
 // A score needs a nonblank quote found verbatim in the same answer; anything else is unscored, not zero.
 export function verifyRating(rating: z.infer<typeof ratingResponseSchema>, answer: string, criterion: { id: string; label: string }): CriterionRating {
@@ -49,7 +59,9 @@ export function verifyEvidence(raw: z.infer<typeof evidenceResponseSchema>, turn
     if (!turn || answer.criteria.length !== rubric.criteria.length || new Set(answer.criteria.map(c => c.criterionId)).size !== rubric.criteria.length) {
       throw new Error('Evaluation contains invalid answer or criterion references.');
     }
-    return { questionIndex: answer.questionIndex, criteria: rubric.criteria.map(criterion => {
+    const review = answer.verdict && answer.verdictReason !== undefined && answer.keyPoints && answer.tip !== undefined
+      ? { review: { verdict: answer.verdict, reason: answer.verdictReason, keyPoints: answer.keyPoints, tip: answer.tip } } : {};
+    return { questionIndex: answer.questionIndex, ...review, criteria: rubric.criteria.map(criterion => {
       const rating = answer.criteria.find(c => c.criterionId === criterion.id);
       if (!rating) throw new Error('Evaluation is missing a rubric criterion.');
       return verifyRating(rating, turn.answer, criterion);
@@ -80,16 +92,23 @@ export function verifyRewrite(raw: z.infer<typeof rewriteResponseSchema>, answer
   return { parts, summary: parsed.summary, dropped: parsed.parts.length - parts.length };
 }
 
-export function summarizeEvidence(answers: AnswerEvaluation[]) {
+// Every criterion counts toward the overall score: one with no evidence in the answer earns no credit, so a session
+// always gets an estimate. The model's overall feedback is used when present; strengths must quote an answer.
+export function summarizeEvidence(answers: AnswerEvaluation[], overall?: z.infer<typeof overallSchema>, turns: { answer: string }[] = []) {
   const all = answers.flatMap(a => a.criteria);
   const rated = all.filter(c => c.score !== null);
-  const enough = rated.length >= Math.ceil(all.length / 2);
+  const facts = `${rated.length} of ${all.length} criterion ratings have verified answer quotes; criteria without evidence count as 0. This is AI coaching feedback, not a hiring prediction.`;
+  const strengths = (overall?.strengths ?? []).flatMap(s => {
+    const quote = s.quote.trim();
+    return quote && turns.some(t => t.answer.includes(quote)) ? [`${s.text} — “${quote}”`] : [];
+  });
   return {
-    score: enough ? Math.round(rated.reduce((sum, c) => sum + c.score!, 0) / rated.length * 20) : null,
-    summary: `${rated.length} of ${all.length} criterion ratings have verified answer quotes. Unscored criteria are excluded. This is AI coaching feedback, not a hiring prediction.`,
-    strengths: rated.filter(c => c.score! >= 4).slice(0, 5).map(c => `${c.label}: ${c.rationale}`),
-    improvements: rated.filter(c => c.improvement).slice(0, 5).map(c => `${c.label}: ${c.improvement}`),
-    nextSteps: rated.filter(c => c.improvement).slice(0, 3).map(c => c.improvement!),
+    score: all.length ? Math.round(all.reduce((sum, c) => sum + (c.score ?? 0), 0) / all.length * 20) : null,
+    summary: overall?.summary.trim() ? `${overall.summary.trim()} ${facts}` : facts,
+    // Without a verified strength from the model, fall back to criteria rated 4–5, which already carry verified quotes.
+    strengths: strengths.length ? strengths : rated.filter(c => c.score! >= 4).slice(0, 5).map(c => `${c.label}: ${c.rationale}`),
+    improvements: overall?.improvements.length ? overall.improvements : rated.filter(c => c.improvement).slice(0, 5).map(c => `${c.label}: ${c.improvement}`),
+    nextSteps: overall?.nextSteps.length ? overall.nextSteps : rated.filter(c => c.improvement).slice(0, 3).map(c => c.improvement!),
   };
 }
 

@@ -187,7 +187,9 @@ const feedbackSchema = new Schema<InterviewFeedback>({
   summary: { type: String, required: true },
   nextSteps: { type: [String], default: [] },
   rubric: { type: rubricSchema },
-  answers: { type: [new Schema({ questionIndex: Number, criteria: [criterionSchema] }, { _id: false })], default: undefined },
+  answers: { type: [new Schema({ questionIndex: Number, criteria: [criterionSchema],
+    review: { type: new Schema({ verdict: { type: String, enum: ['correct', 'partly_correct', 'incorrect', 'not_answered'] }, reason: String,
+      keyPoints: [String], tip: String }, { _id: false }) } }, { _id: false })], default: undefined },
   generation: { type: generationSchema },
 }, { _id: false });
 

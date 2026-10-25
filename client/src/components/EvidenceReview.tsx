@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { AnswerRewrite, CriterionRating, Feedback, ScoreChallenge, StarCheck, Turn } from '../lib/api';
+import type { AnswerReview, AnswerRewrite, CriterionRating, Feedback, ScoreChallenge, StarCheck, Turn, Verdict } from '../lib/api';
 import { TurnTiming } from './Timing';
 import { QuestionSource } from './Grounding';
 
@@ -88,6 +88,18 @@ function StrongerVersion({ rewrite, onRewrite }: { rewrite?: AnswerRewrite; onRe
   </div>;
 }
 
+const VERDICT_LABELS: Record<Verdict, [string, string]> = { correct: ['Correct', 'Strong answer'], partly_correct: ['Partly correct', 'Partly there'],
+  incorrect: ['Incorrect', 'Needs work'], not_answered: ['Not answered', 'Not answered'] };
+// What the reviewer thought of the answer as a whole, what a strong answer covers, and one thing to try next.
+function AnswerVerdict({ review, index, technical }: { review: AnswerReview; index: number; technical: boolean }) {
+  return <section className={`answer-verdict verdict-${review.verdict}`} aria-label={`Review of answer ${index + 1}`}>
+    <div className="verdict-head"><span className="verdict-badge">{VERDICT_LABELS[review.verdict][technical ? 0 : 1]}</span><p>{review.reason}</p></div>
+    <h5>A strong answer would cover</h5>
+    <ul>{review.keyPoints.map((point, i) => <li key={i}>{point}</li>)}</ul>
+    <p className="verdict-tip"><strong>Try next time:</strong> {review.tip}</p>
+  </section>;
+}
+
 const STAR_LABELS = { situation: 'Situation', task: 'Task', action: 'Action', result: 'Result' } as const;
 function StarCoverage({ check, onCheck }: { check?: StarCheck; onCheck?: () => Promise<void> }) {
   const [sending, setSending] = useState(false);
@@ -110,8 +122,8 @@ function StarCoverage({ check, onCheck }: { check?: StarCheck; onCheck?: () => P
   </div>;
 }
 
-export function EvidenceReview({ turn, index, criteria, challenges = [], canChallenge = false, onChallenge, rewrite, onRewrite, star, onStar, limit }:
-  { turn: Turn; index: number; criteria: CriterionRating[]; challenges?: ScoreChallenge[]; canChallenge?: boolean; onChallenge?: ChallengeRequest;
+export function EvidenceReview({ turn, index, criteria, review, technical = true, challenges = [], canChallenge = false, onChallenge, rewrite, onRewrite, star, onStar, limit }:
+  { turn: Turn; index: number; criteria: CriterionRating[]; review?: AnswerReview; technical?: boolean; challenges?: ScoreChallenge[]; canChallenge?: boolean; onChallenge?: ChallengeRequest;
     rewrite?: AnswerRewrite; onRewrite?: () => Promise<void>; star?: StarCheck; onStar?: () => Promise<void>; limit?: number }) {
   const [selected, setSelected] = useState<string | null>(null);
   const evidence = criteria.find(c => c.criterionId === selected)?.evidence;
@@ -124,6 +136,7 @@ export function EvidenceReview({ turn, index, criteria, challenges = [], canChal
     <div className="review-answer" aria-label={`Your answer to question ${index + 1}`}>
       {verified ? <>{turn.answer.slice(0, evidence.start)}<mark>{evidence.quote}</mark>{turn.answer.slice(evidence.end)}</> : turn.answer}
     </div>
+    {review && <AnswerVerdict review={review} index={index} technical={technical} />}
     <div className="criteria-grid">{criteria.map(c => <section className="criterion-card" key={c.criterionId}>
       <div className="criterion-heading"><h5>{c.label}</h5><strong>{c.score === null ? 'Insufficient evidence' : `${c.score} / 5`}</strong></div>
       {c.revisedBy && <span className="revised-tag">Revised after second AI review</span>}

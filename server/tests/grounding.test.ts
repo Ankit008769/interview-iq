@@ -30,7 +30,7 @@ const gateway = createServer(async (req, res) => {
   calls.push({ system: parsed.messages[0].content, input });
   let value: unknown;
   if (input.turns) {
-    value = { answers: input.turns.map((turn: any) => ({ questionIndex: turn.questionIndex,
+    value = { overall: { summary: 'A reasonable start with room for detail.', strengths: [], improvements: ['Add concrete examples.'], nextSteps: ['Practise one more question on this topic.'] }, answers: input.turns.map((turn: any) => ({ questionIndex: turn.questionIndex, verdict: 'partly_correct', verdictReason: 'It covers part of the question.', keyPoints: ['State the approach', 'Give the complexity'], tip: 'Add a concrete example.',
       criteria: input.rubric.criteria.map((c: any) => ({ criterionId: c.id, score: 3, quote: turn.answer, rationale: 'Some evidence.', improvement: 'Be specific.' })) })) };
   } else if (input.documents) {
     const hook = duringQuestion; duringQuestion = undefined; await hook?.();

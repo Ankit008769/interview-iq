@@ -28,7 +28,7 @@ const gateway = createServer(async (req, res) => {
   const parsed = JSON.parse(body); bodies.push(parsed);
   const input = JSON.parse(parsed.messages[1].content);
   const value = input.turns
-    ? { answers: input.turns.map((t: any) => ({ questionIndex: t.questionIndex, criteria: input.rubric.criteria.map((c: any) => ({ criterionId: c.id, score: 2, quote: t.answer, rationale: 'r', improvement: 'i' })) })) }
+    ? { overall: { summary: 'A reasonable start with room for detail.', strengths: [], improvements: ['Add concrete examples.'], nextSteps: ['Practise one more question on this topic.'] }, answers: input.turns.map((t: any) => ({ questionIndex: t.questionIndex, verdict: 'partly_correct', verdictReason: 'It covers part of the question.', keyPoints: ['State the approach', 'Give the complexity'], tip: 'Add a concrete example.', criteria: input.rubric.criteria.map((c: any) => ({ criterionId: c.id, score: 2, quote: t.answer, rationale: 'r', improvement: 'i' })) })) }
     : { question: repeat && input.avoidQuestions?.length ? input.avoidQuestions[0] : `Fresh question ${bodies.length}.`, topic: 'DSA' };
   res.setHeader('content-type', 'application/json');
   res.end(JSON.stringify({ id: 'local', object: 'chat.completion', created: 1, model: parsed.model,
@@ -158,11 +158,17 @@ it('passes judges that order known-quality answers and agree, and fails ones tha
 it('constrains scorecards to the rubric and retries or skips invalid ones in calibration runs', async () => {
   const schema = evidenceSchemaFor('HR', 2);
   const criteria = rubricFor('HR').criteria.map(c => ({ criterionId: c.id, score: 3, quote: null, rationale: 'r', improvement: null }));
-  expect(schema.safeParse({ answers: [0, 1].map(questionIndex => ({ questionIndex, criteria })) }).success).toBe(true);
-  expect(schema.safeParse({ answers: [{ questionIndex: 0, criteria }] }).success).toBe(false);
-  expect(schema.safeParse({ answers: [0, 2].map(questionIndex => ({ questionIndex, criteria })) }).success).toBe(false);
-  expect(schema.safeParse({ answers: [0, 1].map(questionIndex => ({ questionIndex, criteria: [...criteria.slice(1), { ...criteria[0], criterionId: 'made_up' }] })) }).success).toBe(false);
-  expect(schema.safeParse({ answers: [0, 1].map(questionIndex => ({ questionIndex, criteria: criteria.slice(1) })) }).success).toBe(false);
+  const review = { verdict: 'not_answered', verdictReason: 'r', keyPoints: ['a', 'b'], tip: 't' };
+  const overall = { summary: 's', strengths: [], improvements: ['i'], nextSteps: ['n'] };
+  const card = (answers: unknown[]) => ({ overall, answers });
+  expect(schema.safeParse(card([0, 1].map(questionIndex => ({ questionIndex, ...review, criteria })))).success).toBe(true);
+  expect(schema.safeParse(card([0, 1].map(questionIndex => ({ questionIndex, criteria })))).success).toBe(false);
+  expect(schema.safeParse({ answers: [0, 1].map(questionIndex => ({ questionIndex, ...review, criteria })) }).success).toBe(false);
+  expect(schema.safeParse(card([{ questionIndex: 0, ...review, criteria }])).success).toBe(false);
+  expect(schema.safeParse(card([0, 2].map(questionIndex => ({ questionIndex, ...review, criteria })))).success).toBe(false);
+  expect(schema.safeParse(card([0, 1].map(questionIndex => ({ questionIndex, ...review, criteria: [...criteria.slice(1), { ...criteria[0], criterionId: 'made_up' }] })))).success).toBe(false);
+  expect(schema.safeParse(card([0, 1].map(questionIndex => ({ questionIndex, ...review, criteria: criteria.slice(1) })))).success).toBe(false);
+  expect(schema.safeParse(card([0, 1].map(questionIndex => ({ questionIndex, ...review, verdict: 'maybe', criteria })))).success).toBe(false);
 
   let calls = 0;
   const flaky = async (ctx: any) => {

@@ -23,16 +23,35 @@ describe('verified evidence contract', () => {
     expect(rating).toMatchObject({ score: null, status: 'insufficient_evidence', evidence: null, improvement: null });
     expect(rating.rationale).not.toContain('indexed');
   });
-  it('does not accept quotes from a different answer or the question', () => {
+  it('does not accept quotes from a different answer or the question, so nothing earns credit', () => {
     const raw = response(); raw.answers[0].criteria.forEach(c => c.quote = turns[0].question);
-    expect(summarizeEvidence(verifyEvidence(raw, turns, 'Technical')).score).toBeNull();
+    const result = verifyEvidence(raw, turns, 'Technical');
+    expect(result[0].criteria.every(c => c.status === 'insufficient_evidence')).toBe(true);
+    expect(summarizeEvidence(result).score).toBe(0);
   });
-  it('distinguishes an evidenced zero from absent evidence and requires half the criteria for an aggregate', () => {
+  it('distinguishes an evidenced zero from absent evidence; neither earns credit in the overall score', () => {
     const raw = response(); raw.answers[0].criteria.forEach(c => { c.score = 0; c.quote = ''; });
     raw.answers[0].criteria[0].quote = 'Arrays allow indexed access.';
     const result = verifyEvidence(raw, turns, 'Technical');
-    expect(result[0].criteria[0].score).toBe(0);
-    expect(summarizeEvidence(result).score).toBeNull();
+    expect(result[0].criteria[0]).toMatchObject({ score: 0, status: 'rated' });
+    expect(result[0].criteria[1]).toMatchObject({ score: null, status: 'insufficient_evidence' });
+    expect(summarizeEvidence(result).score).toBe(0);
+  });
+  it('keeps the verdict, key points and tip, counts unrated criteria as 0 and keeps only quoted strengths', () => {
+    const raw = { ...response(), overall: { summary: 'You named the core difference.', improvements: ['Discuss insertion cost.'], nextSteps: ['Explain one trade-off aloud.'],
+      strengths: [{ text: 'Clear contrast', quote: 'Arrays allow indexed access.' }, { text: 'Leadership', quote: 'I led a team of ten' }, { text: 'Blank', quote: '  ' }] } };
+    Object.assign(raw.answers[0], { verdict: 'partly_correct', verdictReason: 'It names indexed access but not insertion.', keyPoints: ['Indexed reads are O(1)', 'Insertion shifts elements'], tip: 'Add the cost of insertion.' });
+    raw.answers[0].criteria.slice(2).forEach(c => { c.quote = 'not in the answer'; });
+    const result = verifyEvidence(raw, turns, 'Technical');
+    expect(result[0].review).toEqual({ verdict: 'partly_correct', reason: 'It names indexed access but not insertion.', keyPoints: ['Indexed reads are O(1)', 'Insertion shifts elements'], tip: 'Add the cost of insertion.' });
+    const summary = summarizeEvidence(result, raw.overall, turns);
+    expect(summary.score).toBe(32); // two criteria at 4, three without evidence: 8 / 5 × 20
+    expect(summary.strengths).toEqual(['Clear contrast — “Arrays allow indexed access.”']);
+    expect(summary.summary).toMatch(/^You named the core difference\. 2 of 5 criterion ratings/);
+    expect(summary).toMatchObject({ improvements: ['Discuss insertion cost.'], nextSteps: ['Explain one trade-off aloud.'] });
+    expect(verifyEvidence(response(), turns, 'Technical')[0].review).toBeUndefined();
+    const unquoted = { ...raw.overall, strengths: [{ text: 'Leadership', quote: 'I led a team of ten' }] };
+    expect(summarizeEvidence(result, unquoted, turns).strengths).toEqual(['Correctness: The comparison includes indexed reads.', 'Depth of understanding: The comparison includes indexed reads.']);
   });
   it('rejects missing, duplicate, unknown and out-of-range references', () => {
     const duplicate = response(); duplicate.answers[0].criteria[1].criterionId = 'correctness';

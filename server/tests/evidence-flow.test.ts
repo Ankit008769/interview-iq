@@ -15,7 +15,10 @@ const gateway = createServer(async (req, res) => {
   let body = ''; for await (const chunk of req) body += chunk;
   const parsed = JSON.parse(body); requests.push(parsed);
   const input = JSON.parse(parsed.messages[1].content);
-  const value = input.turns ? { answers: input.turns.map((turn: any) => ({ questionIndex: turn.questionIndex,
+  const value = input.turns ? { overall: { summary: 'You compared the structures clearly.', improvements: ['Name a concrete use case.'], nextSteps: ['Practise explaining insertion cost.'],
+      strengths: [{ text: 'Clear comparison', quote: input.turns[0].answer.split('.')[0] }, { text: 'Invented strength', quote: 'I led a team of ten' }] },
+    answers: input.turns.map((turn: any) => ({ questionIndex: turn.questionIndex,
+    verdict: turn.questionIndex === 0 ? 'correct' : 'not_answered', verdictReason: 'Reason for the verdict.', keyPoints: ['Indexed access is O(1)', 'Lists need traversal'], tip: 'Mention insertion cost.',
     criteria: input.rubric.criteria.map((c: any, i: number) => ({ criterionId: c.id, score: 4,
       quote: i === 0 ? 'fabricated evidence' : turn.answer, rationale: 'The answer states a comparison.', improvement: 'Add a concrete example.' })) })) }
     : { question: `Explain array access, question ${input.questionNumber}.`, topic: 'DSA' };
@@ -52,7 +55,12 @@ it('persists provider provenance and verified scorecards through the real HTTP g
   expect(saved.feedback.rubric.version).toBe('2026-10-24.v1');
   expect(saved.feedback.answers[0].criteria[0]).toMatchObject({ score: null, evidence: null, status: 'insufficient_evidence' });
   expect(saved.feedback.answers[0].criteria[1].evidence.quote).toBe(saved.turns[0].answer);
-  expect(saved.feedback.score).toBe(80);
+  expect(saved.feedback.score).toBe(64); // criterion 0 has a fabricated quote in both answers: 16 / 5 × 20 / 2 answers
+  expect(saved.feedback.answers[0].review).toEqual({ verdict: 'correct', reason: 'Reason for the verdict.', keyPoints: ['Indexed access is O(1)', 'Lists need traversal'], tip: 'Mention insertion cost.' });
+  expect(saved.feedback.answers[1].review.verdict).toBe('not_answered');
+  expect(saved.feedback.strengths).toEqual(['Clear comparison — “Arrays provide indexed access”']);
+  expect(saved.feedback.summary).toMatch(/^You compared the structures clearly\./);
+  expect(saved.feedback).toMatchObject({ improvements: ['Name a concrete use case.'], nextSteps: ['Practise explaining insertion cost.'] });
   expect(requests).toHaveLength(3);
   const attempts = await AIUsage.find({ interviewId: id }).lean();
   expect(attempts).toHaveLength(3);
@@ -61,7 +69,7 @@ it('persists provider provenance and verified scorecards through the real HTTP g
   expect(JSON.parse(requests[2].messages[1].content).turns[0].answer.length).toBeGreaterThan(2500);
   expect(requests[2].model).toBe('iq-judge');
   const history = (await owner.get('/api/interviews').expect(200)).body.interviews;
-  expect(history[0].feedback.score).toBe(80);
+  expect(history[0].feedback.score).toBe(64);
   expect(history[0].feedback.answers).toBeUndefined();
   expect(history[0].feedback.generation).toBeUndefined();
   const stranger = request.agent(app);

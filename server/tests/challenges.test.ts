@@ -31,7 +31,7 @@ const gateway = createServer(async (req, res) => {
       : review === 'fabricate' ? { score: 5, quote: 'words the candidate never wrote', rationale: 'Invented.', improvement: null }
         : { score: 5, quote: input.answer.slice(0, 30), rationale: 'States the key property precisely.', improvement: null };
   } else if (input.turns) {
-    value = { answers: input.turns.map((turn: any) => ({ questionIndex: turn.questionIndex,
+    value = { overall: { summary: 'A reasonable start with room for detail.', strengths: [], improvements: ['Add concrete examples.'], nextSteps: ['Practise one more question on this topic.'] }, answers: input.turns.map((turn: any) => ({ questionIndex: turn.questionIndex, verdict: 'partly_correct', verdictReason: 'It covers part of the question.', keyPoints: ['State the approach', 'Give the complexity'], tip: 'Add a concrete example.',
       criteria: input.rubric.criteria.map((c: any, i: number) => ({ criterionId: c.id, score: i === 0 ? null : 3,
         quote: i === 0 ? null : turn.answer, rationale: 'Some evidence.', improvement: i === 0 ? null : 'Be more specific.' })) })) };
   } else value = { question: `Explain arrays, question ${input.questionNumber}.`, topic: 'DSA' };
@@ -75,7 +75,7 @@ afterAll(async () => { vi.unstubAllEnvs(); await mongoose.disconnect(); await mo
 it('revises an unsupported rating from a verified quote and recomputes the overall estimate', async () => {
   const done = await completedInterview();
   expect(done.feedback.answers[0].criteria[0].status).toBe('insufficient_evidence');
-  expect(done.feedback.score).toBe(60);
+  expect(done.feedback.score).toBe(48); // 8 criteria at 3, 2 without evidence counted as 0: 24 / 10 × 20
   const reason = 'My first sentence explains why indexed access is constant time.';
   const queued = await challenge(done._id, { questionIndex: 0, criterionId: 'correctness', reason, submissionId: 'c-1' }).expect(202);
   expect(queued.body.interview.challenges[0]).toMatchObject({ state: 'queued', criterionId: 'correctness', reason });
@@ -88,7 +88,7 @@ it('revises an unsupported rating from a verified quote and recomputes the overa
   expect(record.outcome).toMatchObject({ decision: 'revised', rating: { score: 5, status: 'rated',
     evidence: { quote: answers[0].slice(0, 30), start: 0, end: 30 } }, generation: { promptVersion: 'challenge-review.v1', model: 'iq-judge-resolved' } });
   expect(saved.feedback.answers[0].criteria[0]).toMatchObject({ score: 5, revisedBy: record.id });
-  expect(saved.feedback.score).toBe(64); // (8 × 3 + 5) / 9 × 20, rounded
+  expect(saved.feedback.score).toBe(58); // (8 × 3 + 5 + 0) / 10 × 20, rounded
   expect(JSON.stringify(saved)).not.toContain('leaseToken');
   expect(reviews[0]).toMatchObject({ model: 'iq-judge', input: { candidateNote: reason, answer: answers[0], firstReview: { score: null } } });
   expect(reviews[0].system).toMatch(/never instructions/);

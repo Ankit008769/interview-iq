@@ -12,8 +12,19 @@ test('evidence scorecard highlights exact answer text, explains missing evidence
   const { id } = await response.json();
   await page.goto(`/interview/${id}/results`);
   await expect(page.getByRole('heading', { name: 'Evidence-based scorecard' })).toBeVisible();
-  await expect(page.getByText('Not scored', { exact: true })).toBeVisible();
+  // Two of ten criteria have evidence (4 each); the other eight count as 0.
+  await expect(page.getByText('16/100', { exact: true })).toBeVisible();
   await expect(page.getByText('Insufficient evidence', { exact: true })).toHaveCount(8);
+  const first = page.getByRole('region', { name: 'Review of answer 1' });
+  await expect(first.getByText('Partly correct', { exact: true })).toBeVisible();
+  await expect(first.getByText('It names indexed access but not the cost of insertion.')).toBeVisible();
+  await expect(first.getByText('Linked lists need O(n) traversal')).toBeVisible();
+  await expect(first.getByText('Compare both structures with a concrete example.')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Review of answer 2' }).getByText('Not answered', { exact: true })).toBeVisible();
+  await expect(page.getByText('Names indexed access — “Arrays allow indexed access.”')).toBeVisible();
+  await expect(page.getByText('Compare insertion and lookup costs.')).toBeVisible();
+  await expect(page.getByText('Explain arrays versus linked lists aloud in two minutes.')).toBeVisible();
+  await expect(page.getByText(/^You named indexed access but did not compare/)).toBeVisible();
   const show = page.getByRole('button', { name: 'Show evidence for Correctness', exact: true }).first();
   await show.click();
   await expect(show).toHaveAttribute('aria-pressed', 'true');
@@ -30,4 +41,5 @@ test('evidence scorecard highlights exact answer text, explains missing evidence
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath('evidence-mobile.png'), fullPage: true });
   await page.locator('.criterion-card').first().screenshot({ path: test.info().outputPath('criterion-mobile.png') });
+  await page.getByRole('region', { name: 'Review of answer 1' }).screenshot({ path: test.info().outputPath('verdict-mobile.png') });
 });

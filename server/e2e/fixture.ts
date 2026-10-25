@@ -75,15 +75,20 @@ host.post('/__test/seed-evidence', requireAuth, async (req, res) => {
     answer: '🙂 Arrays allow indexed access. <script>alert("untrusted")</script> Linked lists require traversal.',
     topic: 'DSA', answeredAt: new Date(), questionIndex: i, submissionId: `fixture-${i}` }));
   const rubric = rubricFor('Technical');
-  const answers = verifyEvidence({ answers: turns.map((_, questionIndex) => ({ questionIndex,
+  const overall = { summary: 'You named indexed access but did not compare the two structures fully.', improvements: ['Compare insertion and lookup costs.'],
+    nextSteps: ['Explain arrays versus linked lists aloud in two minutes.'], strengths: [{ text: 'Names indexed access', quote: 'Arrays allow indexed access.' }] };
+  const answers = verifyEvidence({ overall, answers: turns.map((_, questionIndex) => ({ questionIndex,
+    verdict: questionIndex === 0 ? 'partly_correct' as const : 'not_answered' as const,
+    verdictReason: questionIndex === 0 ? 'It names indexed access but not the cost of insertion.' : 'The answer does not address this question.',
+    keyPoints: ['Arrays give O(1) indexed reads', 'Linked lists need O(n) traversal', 'Insertion costs differ'], tip: 'Compare both structures with a concrete example.',
     criteria: rubric.criteria.map((c, i) => ({ criterionId: c.id, score: 4,
       quote: i === 0 ? 'Arrays allow indexed access.' : null,
       rationale: 'You explain indexed reads.', improvement: 'Compare the cost of insertion.' })) })) }, turns, 'Technical');
   const doc = await Interview.create({ userId: (req as AuthRequest).userId, role: 'Evidence test',
     type: 'Technical', difficulty: 'Intermediate', topic: 'DSA', totalQuestions: 2,
     currentQuestion: 'Explain indexed access.', currentTopic: 'DSA', turns, mode: 'ai', status: 'completed',
-    completedAt: new Date(), feedback: { source: 'ai', ...summarizeEvidence(answers), rubric, answers,
-      generation: { provider: 'test', model: 'deterministic-fixture', promptVersion: 'evidence-judge.v1',
+    completedAt: new Date(), feedback: { source: 'ai', ...summarizeEvidence(answers, overall, turns), rubric, answers,
+      generation: { provider: 'test', model: 'deterministic-fixture', promptVersion: 'evidence-judge.v2',
         inputHash: '0'.repeat(64), inputTokens: 10, outputTokens: 20, latencyMs: 1 } } });
   res.json({ id: doc.id });
 });

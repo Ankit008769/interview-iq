@@ -11,13 +11,12 @@ export const MAX_CHALLENGES_PER_INTERVIEW = 3;
 export const MAX_CHALLENGE_ATTEMPTS = 3;
 const failureMessage = 'The re-review could not finish. Your challenge is saved; you can try again.';
 
-// Same rule as summarizeEvidence (mean of rated criteria × 20, only if at least half are rated), computed
-// in one atomic update from the stored ratings so concurrent revisions converge on the latest state.
+// Same formula as summarizeEvidence (mean of all criteria × 20, no evidence counted as 0), computed in one
+// atomic update from the stored ratings so concurrent revisions converge on the latest state.
 const recomputeScore = [{ $set: { 'feedback.score': { $let: {
   vars: { all: { $reduce: { input: { $ifNull: ['$feedback.answers', []] }, initialValue: [], in: { $concatArrays: ['$$value', '$$this.criteria'] } } } },
-  in: { $let: { vars: { rated: { $filter: { input: '$$all', cond: { $isNumber: '$$this.score' } } } },
-    in: { $cond: [{ $and: [{ $gt: [{ $size: '$$rated' }, 0] }, { $gte: [{ $size: '$$rated' }, { $ceil: { $divide: [{ $size: '$$all' }, 2] } }] }] },
-      { $floor: { $add: [{ $multiply: [{ $avg: '$$rated.score' }, 20] }, 0.5] } }, null] } } } } } } }];
+  in: { $cond: [{ $gt: [{ $size: '$$all' }, 0] },
+    { $floor: { $add: [{ $multiply: [{ $avg: { $map: { input: '$$all', in: { $ifNull: ['$$this.score', 0] } } } }, 20] }, 0.5] } }, null] } } } } }];
 
 // Challenges live inside the interview document, so export and account deletion already cover them.
 // Lease tokens fence out a late result from a worker whose lease was reclaimed, as for interview jobs.

@@ -95,9 +95,14 @@ code units, matching the browser's `slice`; end is exclusive.
 
 An absent or fabricated quote becomes `insufficient_evidence`, with null score,
 null evidence, null suggestion and a fixed explanation. A missing observation is
-not scored as zero. Aggregate score is the equal-weight mean of supported ratings,
-mapped to 0–100 for the existing dashboard, only when at least half of all ratings
-are supported. Unscored criteria are excluded. Old reports remain readable and
+not scored as zero on that criterion. Since 25 October 2026 (prompt
+`evidence-judge.v2`) the aggregate score is the equal-weight mean of all criteria,
+with criteria lacking evidence counted as 0, mapped to 0–100, so every AI interview
+gets a score; before that it averaged only supported ratings and needed half of them.
+The judge also returns, per answer, a verdict (correct, partly correct, incorrect or
+not answered), the points a strong answer would cover and one tip, plus an overall
+summary, improvements and next steps. Strengths must quote an answer or are dropped,
+falling back to criteria rated 4–5. Old reports remain readable and
 are not silently re-evaluated; changes in rubric/model make scores non-equivalent.
 The dashboard's historical average still mixes versions, so it must not be used
 as a measured learning-gain claim until the analytics milestone separates them.

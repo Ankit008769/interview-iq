@@ -11,7 +11,7 @@ let calls=0;
 const gateway=createServer(async(req,res)=>{
   let body='';for await(const chunk of req)body+=chunk;
   const parsed=JSON.parse(body), input=JSON.parse(parsed.messages[1].content);calls++;
-  const value={answers:input.turns.map((turn:any)=>({questionIndex:turn.questionIndex,criteria:input.rubric.criteria.map((criterion:any)=>({criterionId:criterion.id,score:3,quote:turn.answer,rationale:'Fixture evidence.',improvement:'Add a tradeoff.'}))}))};
+  const value={overall:{summary:'Fixture summary.',strengths:[],improvements:['Add a tradeoff.'],nextSteps:['Practise again.']},answers:input.turns.map((turn:any)=>({questionIndex:turn.questionIndex,verdict:'partly_correct',verdictReason:'Fixture reason.',keyPoints:['Point one','Point two'],tip:'Add a tradeoff.',criteria:input.rubric.criteria.map((criterion:any)=>({criterionId:criterion.id,score:3,quote:turn.answer,rationale:'Fixture evidence.',improvement:'Add a tradeoff.'}))}))};
   res.setHeader('content-type','application/json');res.end(JSON.stringify({id:'fixture',object:'chat.completion',created:1,model:parsed.model,choices:[{index:0,message:{role:'assistant',content:JSON.stringify(value)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50}}));
 });
 beforeAll(async()=>{await new Promise<void>(r=>gateway.listen(0,'127.0.0.1',r));});
