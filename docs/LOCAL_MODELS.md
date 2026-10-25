@@ -147,7 +147,12 @@ the faster but out-of-India alternative.
 - Terraform declares the sidecar (`model_image`, `model_cpu`, `model_memory`,
   `app_container_name`); releases still own the app image and environment.
 
-**Current (25 October 2026, 10:23 UTC):** revision `interview-iq-feedback-faa10f2` serves 100% of
+**Current (25 October 2026, 10:50 UTC):** revision `interview-iq-languages-2a4cc85` serves 100% of
+traffic with app image `interview-iq:2a4cc85`
+(`sha256:aef7d5fa89266ff129e2c345a950363a5cc8d3a6ca9bb4df110f5d0646e2745b`: adds Hindi and Hinglish
+interviews, see [LANGUAGES.md](LANGUAGES.md)); rollback revision `interview-iq-feedback-faa10f2`.
+
+**Previous (10:23 UTC):** revision `interview-iq-feedback-faa10f2` served 100% of
 traffic with app image `interview-iq:faa10f2`
 (`sha256:770880464627defa3f8a839b4d2c88f597021b7da0a48f0d5e814c9e3c2e9218`: per-answer verdicts,
 key points and tips, overall AI feedback, always-present score) and the same model image; rollback
