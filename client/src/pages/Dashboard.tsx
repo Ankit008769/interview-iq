@@ -4,6 +4,7 @@ import { ArrowRight, ArrowUpRight, BrainCircuit, CalendarDays, ChevronRight, Cir
 import { api, type Overview } from '../lib/api';
 import { useAuth } from '../components/AuthProvider';
 import { LoadingScreen } from '../components/Layout';
+import { WhatsNew } from '../components/WhatsNew';
 
 const tracks = [
   { icon: <BrainCircuit size={21}/>, title:'Technical interview', desc:'DSA, React, Node.js and databases', hue:'purple', type:'Technical', topic:'DSA' },
@@ -18,6 +19,7 @@ export function Dashboard() {
     <div className="page-kicker"><CalendarDays size={14}/> {date.toUpperCase()}</div>
     <div className="page-heading"><div><h1>Good to see you, {user?.name?.split(' ')[0]} <span className="wave">✦</span></h1><p>Build confidence, one conversation at a time.</p></div><Link to="/interview/new" className="button primary"><PlusIcon/> New interview <ArrowRight size={17}/></Link></div>
     <section className="hero"><div className="hero-copy"><span className="hero-tag"><Zap size={14}/> YOUR NEXT STEP STARTS HERE</span><h2>Practice smarter.<br/><span>Interview stronger.</span></h2><p>Walk into your next interview feeling prepared. Start a guided session tailored to your goals.</p><Link to="/interview/new" className="button light">Start practicing <ArrowUpRight size={17}/></Link></div><div className="hero-art"><div className="orb2 outer"/><div className="orb2 inner"/><div className="hero-avatar"><BrainCircuit size={52}/></div><div className="hero-floating top"><span className="signal"/> Interview in progress</div><div className="hero-floating bottom"><CircleCheck size={17}/> You're making progress!</div></div></section>
+    <WhatsNew/>
     <div className="section-title"><div><h3>Your progress</h3><p>Track your interview preparation journey</p></div><span className="subtle-small">Updated after every session</span></div>
     {error&&<div className="alert error">{error}</div>}
     {!data ? !error&&<LoadingScreen/>:<div className="metrics">

@@ -6,8 +6,11 @@ test('AI disclosure needs explicit permission, withdrawal blocks AI, and practic
   await page.goto('/interview/new');await expect(page.getByText('OpenAI',{exact:true})).toBeVisible();
   const agreement=page.getByRole('checkbox',{name:'I agree to send my interview content to this provider for AI coaching.'});
   const useAI=page.getByRole('checkbox',{name:'Use AI for this interview (requires permission above)'});
-  await expect(agreement).not.toBeChecked();await expect(useAI).not.toBeChecked();await expect(page.getByRole('button',{name:'Allow AI processing'})).toBeDisabled();
-  await useAI.check();await expect(page.getByRole('button',{name:'Start interview',exact:true})).toBeDisabled();
+  // AI is the default when the server offers it; starting waits for permission.
+  await expect(agreement).not.toBeChecked();await expect(useAI).toBeChecked();await expect(page.getByRole('button',{name:'Allow AI processing'})).toBeDisabled();
+  await expect(page.getByText(/^Needed for AI interviews: freshly written questions/)).toBeVisible();
+  await expect(page.getByText(/^Accept AI processing above to start an AI interview/)).toBeVisible();
+  await expect(page.getByRole('button',{name:'Start interview',exact:true})).toBeDisabled();
   await agreement.check();await page.getByRole('button',{name:'Allow AI processing'}).click();await expect(page.getByText('Permission granted for this provider configuration.')).toBeVisible();
   await expect(page.getByRole('button',{name:'Start interview',exact:true})).toBeEnabled();
   await page.getByRole('button',{name:'Withdraw AI permission'}).click();await expect(agreement).not.toBeChecked();await expect(page.getByRole('button',{name:'Start interview',exact:true})).toBeDisabled();

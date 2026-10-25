@@ -10,6 +10,7 @@ export function AIConsent({onChange}:{onChange?:(ready:boolean, aiAvailable:bool
   return <section className="ai-consent"><h2>AI processing permission</h2>
     {error&&<div className="alert error" role="alert">{error} <button type="button" className="button" onClick={load}>Reload AI details</button></div>}
     {!data?<p>Loading provider details…</p>:<>{data.disclosure?<>
+      {!data.accepted&&<p className="ai-unlocks">{data.hasGrant?'AI processing changed since you last accepted (for example, voice answers were added). Review the details and accept again to keep using AI interviews.':'Needed for AI interviews: freshly written questions, scoring with a verdict, key points and tips for every answer, Hindi or Hinglish, voice answers and resume tailoring.'}</p>}
       <p><strong>{data.disclosure.provider}</strong> · {data.disclosure.endpoint}</p>
       <p>Question model: {data.disclosure.interviewerModel}. Feedback model: {data.disclosure.judgeModel}.{data.disclosure.transcriptionModel&&` Transcription model: ${data.disclosure.transcriptionModel}.`}</p>
       <p>{data.disclosure.description}</p>{data.disclosure.documents&&<p>{data.disclosure.documents}</p>}{data.disclosure.voice&&<p>{data.disclosure.voice}</p>}<p>{data.disclosure.retention}</p><p>{data.disclosure.withdrawal}</p>

@@ -18,9 +18,16 @@ test('a Hindi AI interview is labelled and read aloud with a Hindi voice', async
   try {
     const consent = await (await page.request.get('/api/account/ai-consent')).json();
     expect((await page.request.post('/api/account/ai-consent', { data: { version: consent.disclosure.version, accepted: true } })).status()).toBe(200);
-    await page.goto('/interview/new');
-    await expect(page.getByRole('group', { name: 'Interview language' })).toHaveCount(0);
-    await page.getByLabel('Use AI for this interview').check();
+    // Right after sign-in, the dashboard shows what AI interviews offer and leads straight into one.
+    await page.goto('/dashboard');
+    const news = page.getByRole('region', { name: 'New in AI interviews' });
+    await expect(news.getByText(/AI permission accepted/)).toBeVisible();
+    await expect(news.getByText('Answer by voice', { exact: true })).toBeVisible();
+    await expect(news.getByText('Hindi and Hinglish (beta)', { exact: true })).toBeVisible();
+    await news.screenshot({ path: test.info().outputPath('whats-new.png') });
+    await news.getByRole('link', { name: /Start an AI interview/ }).click();
+    await expect(page).toHaveURL(/\/interview\/new$/);
+    await expect(page.getByLabel('Use AI for this interview')).toBeChecked();
     const languages = page.getByRole('group', { name: 'Interview language' });
     await expect(languages.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
     await languages.getByRole('button', { name: 'हिन्दी (Hindi)' }).click();
