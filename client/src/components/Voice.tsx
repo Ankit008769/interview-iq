@@ -75,7 +75,8 @@ export function VoiceAnswer({ interviewId, disabled, onTranscript, onBusy }: {
     if (blob.size > 8 * 1024 * 1024) { cancel(); setError('Recording exceeds 8 MB. Try a shorter answer or type it.'); return; }
     setState('transcribing');
     const controller = new AbortController(); controllerRef.current = controller;
-    const timeout = setTimeout(() => controller.abort(), 90_000);
+    // On-server CPU transcription of a long answer can take a few minutes.
+    const timeout = setTimeout(() => controller.abort(), 300_000);
     try {
       const response = await fetch(`/api/interviews/${interviewId}/transcribe`, { method: 'POST', body: blob, credentials: 'include',
         headers: { 'Content-Type': blob.type.split(';')[0] || 'audio/webm', 'X-Recording-Ms': String(recordedMs) }, signal: controller.signal });

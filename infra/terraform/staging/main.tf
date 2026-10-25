@@ -245,8 +245,8 @@ resource "google_cloud_run_v2_service" "app" {
     containers {
       name  = var.app_container_name
       image = var.container_image
-      # With local models, the app starts after the model sidecar answers.
-      depends_on = var.model_image == "" ? [] : ["ollama"]
+      # With local models, the app starts after its sidecars answer.
+      depends_on = concat(var.model_image == "" ? [] : ["ollama"], var.voice_image == "" ? [] : ["whisper"])
       ports {
         container_port = 8080
       }
@@ -312,6 +312,33 @@ resource "google_cloud_run_v2_service" "app" {
           http_get {
             path = "/api/version"
             port = 11434
+          }
+          period_seconds    = 5
+          timeout_seconds   = 3
+          failure_threshold = 60
+        }
+      }
+    }
+
+    # faster-whisper speech-to-text (deploy/whisper) for voice answers; the app's TRANSCRIPTION_* env points at
+    # http://127.0.0.1:8000/v1. An empty voice_image removes it.
+    dynamic "containers" {
+      for_each = var.voice_image == "" ? [] : [var.voice_image]
+      content {
+        name  = "whisper"
+        image = containers.value
+        resources {
+          limits = {
+            cpu    = var.voice_cpu
+            memory = var.voice_memory
+          }
+          cpu_idle          = false
+          startup_cpu_boost = true
+        }
+        startup_probe {
+          http_get {
+            path = "/health"
+            port = 8000
           }
           period_seconds    = 5
           timeout_seconds   = 3

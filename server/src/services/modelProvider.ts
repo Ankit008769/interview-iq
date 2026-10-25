@@ -95,6 +95,16 @@ export function configuredProvider(): ModelProvider | null {
   };
 }
 
+// For the health endpoint: whether the local speech server answers, when voice is configured.
+export async function localVoiceStatus(): Promise<'ready' | 'unavailable' | undefined> {
+  const config = providerConfig();
+  if (config.provider !== 'local' || !config.transcriptionModel) return undefined;
+  try {
+    const response = await fetch(new URL('/health', config.transcriptionBaseURL).toString(), { signal: AbortSignal.timeout(1500) });
+    return response.ok ? 'ready' : 'unavailable';
+  } catch { return 'unavailable'; }
+}
+
 // For the health endpoint: whether the local model server answers and has both configured models installed.
 export async function localModelStatus(): Promise<'ready' | 'unavailable' | undefined> {
   const config = providerConfig();
@@ -116,7 +126,7 @@ export async function transcribeAudio(audio: Buffer, mimeType: string, usageCont
   const config = providerConfig();
   if (!config.transcriptionModel) throw new Error('Transcription is not configured.');
   const consent = await requireAIConsent(usageContext.userId);
-  const client = new OpenAI({ apiKey: config.key || 'local-development', baseURL: config.baseURL, timeout: 60_000, maxRetries: 0 });
+  const client = new OpenAI({ apiKey: config.key || 'local-development', baseURL: config.transcriptionBaseURL, timeout: config.transcriptionTimeoutMs, maxRetries: 0 });
   const started = Date.now();
   // Persist before calling the vendor, as for text generation.
   const attempt = await AIUsage.create({ ...usageContext, consentVersion: consent.version, provider: config.provider,

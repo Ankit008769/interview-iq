@@ -150,15 +150,33 @@ variable "model_image" {
 }
 
 variable "model_cpu" {
-  description = "vCPUs for the model sidecar. App plus sidecar must stay within 8 vCPUs per instance."
+  description = "vCPUs for the model sidecar. App plus sidecars must stay within 8 vCPUs per instance."
   type        = string
-  default     = "6"
+  default     = "5"
 }
 
 variable "model_memory" {
   description = "Memory for the model sidecar: model weights (~3.5 GB) plus a 16K-token context."
   type        = string
   default     = "8Gi"
+}
+
+variable "voice_image" {
+  description = "faster-whisper speech-to-text sidecar image (deploy/whisper). Empty removes the sidecar."
+  type        = string
+  default     = "asia-south1-docker.pkg.dev/project-12b39f1f-9d49-456e-957/cloud-run-source-deploy/interview-iq-whisper:1.2.1-small"
+}
+
+variable "voice_cpu" {
+  description = "vCPUs for the speech-to-text sidecar."
+  type        = string
+  default     = "2"
+}
+
+variable "voice_memory" {
+  description = "Memory for the speech-to-text sidecar (small model, int8)."
+  type        = string
+  default     = "2Gi"
 }
 
 variable "run_vpc_egress" {

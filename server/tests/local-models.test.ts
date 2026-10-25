@@ -35,18 +35,28 @@ const gateway = createServer(async (req, res) => {
     choices: [{ index: 0, message: { role: 'assistant', content: JSON.stringify(value), refusal: null }, finish_reason: 'stop' }],
     usage: { prompt_tokens: 50, completion_tokens: 20, total_tokens: 70 } }));
 });
+// Stand-in for deploy/whisper: records what it received and answers like the real server.
+const sttUploads: string[] = [];
+const stt = createServer(async (req, res) => {
+  const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(chunk as Buffer);
+  res.setHeader('content-type', 'application/json');
+  if (req.url === '/health') { res.end(JSON.stringify({ ok: true, model: 'small' })); return; }
+  sttUploads.push(Buffer.concat(chunks).toString('latin1'));
+  res.end(JSON.stringify({ text: 'I would use a hash map.' }));
+});
 let mongo: MongoMemoryServer;
 const start = () => owner.post('/api/interviews').send({ role: 'Developer', type: 'Technical', difficulty: 'Intermediate', topic: 'DSA', totalQuestions: 2, mode: 'ai' });
 
 beforeAll(async () => {
   await new Promise<void>(resolve => gateway.listen(0, '127.0.0.1', resolve));
+  await new Promise<void>(resolve => stt.listen(0, '127.0.0.1', resolve));
   vi.stubEnv('AI_PROVIDER', 'local'); vi.stubEnv('LLM_BASE_URL', `http://127.0.0.1:${(gateway.address() as AddressInfo).port}/v1`);
   vi.stubEnv('INTERVIEW_WRITES_PER_15_MIN', '500');
   mongo = await MongoMemoryServer.create(); await mongoose.connect(mongo.getUri());
   await owner.post('/api/auth/register').send({ name: 'Local Tester', email: 'local@example.test', password: 'test-password' }).expect(201);
 }, 120_000);
 beforeEach(async () => { bodies.length = 0; repeat = false; await Interview.deleteMany({}); });
-afterAll(async () => { vi.unstubAllEnvs(); await mongoose.disconnect(); await mongo?.stop(); gateway.close(); });
+afterAll(async () => { vi.unstubAllEnvs(); await mongoose.disconnect(); await mongo?.stop(); gateway.close(); stt.close(); });
 
 it('configures a local model on loopback with CPU-friendly timeouts and leases', () => {
   vi.stubEnv('AI_MODEL', 'gpt-4o-mini');
@@ -186,4 +196,31 @@ it('constrains scorecards to the rubric and retries or skips invalid ones in cal
     undefined, { attempts: 2, onSkip: id => skipped.push(id) });
   expect(skipped).toEqual([items[0].id]);
   expect(new Set(kept.map(r => r.itemId))).toEqual(new Set([items[1].id]));
+});
+
+it('transcribes voice answers on the local speech server and reports its readiness', async () => {
+  const url = `http://127.0.0.1:${(stt.address() as AddressInfo).port}/v1`;
+  vi.stubEnv('TRANSCRIPTION_MODEL', 'small'); vi.stubEnv('TRANSCRIPTION_BASE_URL', url);
+  try {
+    expect(providerConfig()).toMatchObject({ transcriptionBaseURL: url, transcriptionTimeoutMs: 300_000 });
+    const { disclosure } = (await owner.get('/api/account/ai-consent').expect(200)).body;
+    expect(disclosure.voice).toMatch(/transcribed on the Interview IQ server and then discarded/);
+    await owner.post('/api/account/ai-consent').send({ version: disclosure.version, accepted: true }).expect(200);
+    expect((await request(app).get('/api/health').expect(200)).body).toMatchObject({ model: 'ready', voice: 'ready' });
+    const id = (await start().expect(201)).body.interview._id;
+    const before = bodies.length;
+    const webm = Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(4096, 7)]);
+    const response = await owner.post(`/api/interviews/${id}/transcribe`).set('Content-Type', 'audio/webm').set('X-Recording-Ms', '12000').send(webm).expect(200);
+    expect(response.body.transcript).toBe('I would use a hash map.');
+    expect(sttUploads.at(-1)).toMatch(/name="model"\r\n\r\nsmall\r\n/);
+    expect(bodies.length).toBe(before);
+    vi.stubEnv('TRANSCRIPTION_BASE_URL', 'http://127.0.0.1:9/v1');
+    expect((await request(app).get('/api/health').expect(200)).body.voice).toBe('unavailable');
+    vi.stubEnv('TRANSCRIPTION_BASE_URL', 'https://speech.example.com/v1');
+    expect(() => providerConfig()).toThrow(/speech-to-text must be served on this machine/);
+  } finally {
+    vi.stubEnv('TRANSCRIPTION_MODEL', ''); vi.stubEnv('TRANSCRIPTION_BASE_URL', '');
+    const { disclosure } = (await owner.get('/api/account/ai-consent').expect(200)).body;
+    await owner.post('/api/account/ai-consent').send({ version: disclosure.version, accepted: true }).expect(200);
+  }
 });

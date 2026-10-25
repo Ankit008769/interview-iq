@@ -2,6 +2,8 @@
 // OpenAI-compatible API. Nothing leaves the server, and CPU inference needs longer timeouts.
 export const LOCAL_DEFAULT_URL = 'http://127.0.0.1:11434/v1';
 export const LOCAL_DEFAULT_MODEL = 'qwen3.5:4b';
+// Local speech-to-text (deploy/whisper) has its own server; hosted providers share the LLM endpoint.
+export const LOCAL_TRANSCRIPTION_URL = 'http://127.0.0.1:8000/v1';
 const loopbackHosts = ['localhost', '127.0.0.1', '[::1]'];
 
 export function providerConfig() {
@@ -31,7 +33,14 @@ export function providerConfig() {
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 5_000 || timeoutMs > 1_800_000) throw new Error('LLM_TIMEOUT_MS must be between 5000 and 1800000.');
   // Voice answers stay off until a transcription model is chosen explicitly, so no audio cost is a surprise.
   const transcriptionModel = provider === 'practice' ? undefined : process.env.TRANSCRIPTION_MODEL || undefined;
-  return { provider, key, transcriptionModel, baseURL, interviewerModel, judgeModel, timeoutMs };
+  const transcriptionBaseURL = local ? process.env.TRANSCRIPTION_BASE_URL || LOCAL_TRANSCRIPTION_URL : baseURL;
+  if (local && transcriptionModel && !loopbackHosts.includes(new URL(transcriptionBaseURL!).hostname)) {
+    throw new Error('Local speech-to-text must be served on this machine (localhost).');
+  }
+  // CPU transcription of a five-minute answer can take a few minutes.
+  const transcriptionTimeoutMs = Number(process.env.TRANSCRIPTION_TIMEOUT_MS || (local ? 300_000 : 60_000));
+  if (!Number.isSafeInteger(transcriptionTimeoutMs) || transcriptionTimeoutMs < 5_000 || transcriptionTimeoutMs > 600_000) throw new Error('TRANSCRIPTION_TIMEOUT_MS must be between 5000 and 600000.');
+  return { provider, key, transcriptionModel, baseURL, interviewerModel, judgeModel, timeoutMs, transcriptionBaseURL, transcriptionTimeoutMs };
 }
 
 // Work leases outlast the slowest allowed model call, so a slow local model is never claimed twice.

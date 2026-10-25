@@ -33,6 +33,35 @@ rewrites work unchanged on spoken answers.
   usage ledger records each attempt (slot `transcriber`, prompt `transcription.v1`)
   before calling the provider. Provider errors are never echoed or logged.
 
+## Local speech-to-text (25 October 2026)
+
+With `AI_PROVIDER=local`, voice answers use **faster-whisper** on the Interview IQ server
+instead of a hosted API, so recordings never leave it. `deploy/whisper/server.py` is a
+small FastAPI app that loads the Whisper `small` model (multilingual, int8, about 464 MB)
+once and serves the OpenAI-compatible `POST /v1/audio/transcriptions` the app already
+calls, plus `GET /health`. Audio is decoded in memory and never written or logged.
+
+- Laptop: create a virtual environment, `pip install -r deploy/whisper/requirements.txt`,
+  then `uvicorn server:app --host 127.0.0.1 --port 8000` in `deploy/whisper`, and set
+  `TRANSCRIPTION_MODEL=small` in `server/.env`. `TRANSCRIPTION_BASE_URL` defaults to
+  `http://127.0.0.1:8000/v1` and must be on localhost; `TRANSCRIPTION_TIMEOUT_MS`
+  defaults to 300000 for local CPU.
+- Cloud Run: `deploy/whisper/Dockerfile` bakes the model in; it runs as a third
+  container (`whisper`, 2 vCPU, 2 GiB, startup probe `GET /health` on port 8000), with
+  Ollama reduced to 5 vCPU to stay within 8 vCPU per instance. `deploy/prepare-release.mjs
+  candidate --voice-image IMAGE` adds it and points the app at it; Terraform declares it
+  (`voice_image`, `voice_cpu`, `voice_memory`).
+- `GET /api/health` reports `voice: "ready"` when the speech server answers. Turning
+  voice on changes the consent text (recordings are transcribed on the Interview IQ
+  server and then discarded), so users accept once more.
+- Pins: faster-whisper 1.2.1 needs PyAV 15.1.0; PyAV 19 rejects an argument it passes,
+  and every recording then fails to decode.
+
+Measured on the laptop CPU: a 17.6 s spoken answer (WAV or WebM/Opus) transcribed in
+about 7.5–8 s, about 8 s through the app including delivery feedback; the text was exact
+apart from "XOR" becoming "x or". Hindi accuracy is not measured (no Hindi test voice on
+the laptop); the `small` model is weaker on Hindi than larger Whisper models.
+
 ## API
 
 The browser also sends the recording length as `X-Recording-Ms`; the server then returns

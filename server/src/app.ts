@@ -13,7 +13,7 @@ import interviewRoutes from './routes/interviews.js';
 import documentRoutes from './routes/documents.js';
 import { QuotaError } from './services/quotas.js';
 import { interviewMode } from './services/ai.js';
-import { localModelStatus } from './services/modelProvider.js';
+import { localModelStatus, localVoiceStatus } from './services/modelProvider.js';
 
 const origin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
 
@@ -38,8 +38,9 @@ app.use((req, res, next) => {
 // Model readiness is reported for local models but does not change the status code: the database decides liveness.
 app.get('/api/health', async (_req, res) => {
   const connected = mongoose.connection.readyState === 1;
-  const model = await localModelStatus();
-  res.status(connected ? 200 : 503).json({ ok: connected, database: connected ? 'connected' : 'disconnected', aiMode: interviewMode(), ...(model ? { model } : {}) });
+  const [model, voice] = await Promise.all([localModelStatus(), localVoiceStatus()]);
+  res.status(connected ? 200 : 503).json({ ok: connected, database: connected ? 'connected' : 'disconnected', aiMode: interviewMode(),
+    ...(model ? { model } : {}), ...(voice ? { voice } : {}) });
 });
 app.use('/api/auth', authRoutes);
 app.use('/api/account', accountRoutes);
