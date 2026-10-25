@@ -147,7 +147,14 @@ the faster but out-of-India alternative.
 - Terraform declares the sidecar (`model_image`, `model_cpu`, `model_memory`,
   `app_container_name`); releases still own the app image and environment.
 
-**Deployed 25 October 2026:** revision `interview-iq-local-models-v2-4d88c97`, 100% of
+**Current (25 October 2026, 10:23 UTC):** revision `interview-iq-feedback-faa10f2` serves 100% of
+traffic with app image `interview-iq:faa10f2`
+(`sha256:770880464627defa3f8a839b4d2c88f597021b7da0a48f0d5e814c9e3c2e9218`: per-answer verdicts,
+key points and tips, overall AI feedback, always-present score) and the same model image; rollback
+revision `interview-iq-local-models-v2-4d88c97`. App-only releases reuse the same candidate steps
+with a manifest that changes only the app image, `DEPLOYMENT_COMMIT` and the revision name.
+
+**First deployed 25 October 2026:** revision `interview-iq-local-models-v2-4d88c97`, 100% of
 traffic, app image `interview-iq:4d88c97`
 (`sha256:e9f8599d41011a007db50c94ff643132670c7b289db625b7e76e5b4959c6fca5`), model image
 `interview-iq-ollama:0.40.11-qwen3.5-4b-v2`
