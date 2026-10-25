@@ -28,6 +28,17 @@ router.post('/ai-consent', async(req,res,next)=>{
 router.delete('/ai-consent',async(req,res,next)=>{
   try{await User.updateOne({_id:(req as AuthRequest).userId},{$unset:{aiConsent:1}});res.json({ok:true});}catch(error){next(error);}
 });
+// Delivery metrics (pace and filler words from voice answers) can be turned off; that stops measuring and hides them.
+router.patch('/preferences', async (req, res, next) => {
+  try {
+    const parsed = z.object({ deliveryMetrics: z.boolean() }).strict().safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: 'Choose whether to show delivery feedback.' }); return; }
+    const user = await User.findOneAndUpdate({ _id: (req as AuthRequest).userId, deletionRequestedAt: { $exists: false } },
+      { $set: { 'preferences.deliveryMetrics': parsed.data.deliveryMetrics } }, { new: true });
+    if (!user) { res.sendStatus(401); return; }
+    res.json({ user: userView(user) });
+  } catch (err) { next(err); }
+});
 
 router.get('/sessions', async (req, res, next) => {
   try {

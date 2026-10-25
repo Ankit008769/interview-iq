@@ -9,6 +9,7 @@ export interface IUser {
   aiConsent?: { version: string; acceptedAt: Date; provider: string; endpoint: string };
   emailVerifiedAt?: Date;
   deletionRequestedAt?: Date;
+  preferences?: { deliveryMetrics?: boolean };
 }
 
 const userSchema = new Schema<IUser>({
@@ -19,6 +20,8 @@ const userSchema = new Schema<IUser>({
   aiConsent: { type: new Schema({version:String,acceptedAt:Date,provider:String,endpoint:String}, {_id:false}), default:undefined },
   emailVerifiedAt: Date,
   deletionRequestedAt: Date,
+  // Absent means on. Turning delivery metrics off stops measuring new recordings and hides them.
+  preferences: { type: new Schema({ deliveryMetrics: Boolean }, { _id: false }), default: undefined },
 }, { timestamps: true });
 
 export const User = mongoose.model<IUser>('User', userSchema);

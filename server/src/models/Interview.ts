@@ -1,6 +1,6 @@
 import mongoose, { Schema } from 'mongoose';
 import type { GenerationMetadata } from '../services/modelProvider.js';
-import type { AnswerEvaluation, CriterionRating, RewritePart } from '../services/evidence.js';
+import type { AnswerEvaluation, CriterionRating, RewritePart, StarPart } from '../services/evidence.js';
 import type { rubricFor } from '../services/rubrics.js';
 
 export type InterviewType = 'Technical' | 'Behavioral' | 'HR';
@@ -62,6 +62,21 @@ export type AnswerRewrite = {
   generation?: GenerationMetadata;
   createdAt: Date;
 };
+// Measured from one recording sent for transcription while a question was on screen. Counts only; no audio or text.
+export type DeliveryClip = {
+  questionIndex: number;
+  seconds: number;
+  words: number;
+  fillers: { term: string; count: number }[];
+  version: string;
+  createdAt: Date;
+};
+export type StarCheck = {
+  questionIndex: number;
+  parts: StarPart[];
+  generation?: GenerationMetadata;
+  createdAt: Date;
+};
 export interface IInterview {
   mode?: 'ai' | 'practice';
   processingState: 'ready' | 'queued' | 'processing' | 'failed';
@@ -91,6 +106,8 @@ export interface IInterview {
   feedback?: InterviewFeedback;
   challenges: ScoreChallenge[];
   rewrites: AnswerRewrite[];
+  deliveryClips: DeliveryClip[];
+  starChecks: StarCheck[];
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;
@@ -124,6 +141,18 @@ const rewriteSchema = new Schema<AnswerRewrite>({
   parts: [new Schema({ kind: { type: String, enum: ['answer', 'addition'], required: true }, text: { type: String, required: true },
     quote: String, start: Number, end: Number }, { _id: false })],
   summary: { type: String, default: '' }, dropped: { type: Number, default: 0 },
+  generation: generationSchema, createdAt: { type: Date, default: Date.now },
+}, { _id: false });
+const deliveryClipSchema = new Schema<DeliveryClip>({
+  questionIndex: { type: Number, min: 0, max: 4, required: true },
+  seconds: { type: Number, min: 0, required: true }, words: { type: Number, min: 0, required: true },
+  fillers: [new Schema({ term: { type: String, required: true }, count: { type: Number, min: 1, required: true } }, { _id: false })],
+  version: { type: String, required: true }, createdAt: { type: Date, default: Date.now },
+}, { _id: false });
+const starCheckSchema = new Schema<StarCheck>({
+  questionIndex: { type: Number, min: 0, max: 4, required: true },
+  parts: [new Schema({ part: { type: String, enum: ['situation', 'task', 'action', 'result'], required: true },
+    status: { type: String, enum: ['found', 'missing'], required: true }, quote: String, start: Number, end: Number, tip: String }, { _id: false })],
   generation: generationSchema, createdAt: { type: Date, default: Date.now },
 }, { _id: false });
 const rubricSchema = new Schema({ version: String, type: String, scale: String, anchors: [String],
@@ -191,6 +220,8 @@ const interviewSchema = new Schema<IInterview>({
   feedback: { type: feedbackSchema },
   challenges: { type: [challengeSchema], default: [] },
   rewrites: { type: [rewriteSchema], default: [] },
+  deliveryClips: { type: [deliveryClipSchema], default: [] },
+  starChecks: { type: [starCheckSchema], default: [] },
   completedAt: { type: Date },
 }, { timestamps: true });
 interviewSchema.index({ userId: 1, createdAt: -1, _id: -1 });

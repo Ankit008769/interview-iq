@@ -83,3 +83,25 @@ export function summarizeEvidence(answers: AnswerEvaluation[]) {
     nextSteps: rated.filter(c => c.improvement).slice(0, 3).map(c => c.improvement!),
   };
 }
+
+export const STAR_PARTS = ['situation', 'task', 'action', 'result'] as const;
+export const starResponseSchema = z.object({
+  parts: z.array(z.object({ part: z.enum(STAR_PARTS), quote: z.string().nullable(), tip: z.string().max(300).nullable() })).length(4),
+});
+export type StarPart = { part: typeof STAR_PARTS[number]; status: 'found'; quote: string; start: number; end: number }
+  | { part: typeof STAR_PARTS[number]; status: 'missing'; tip?: string };
+
+// A STAR part counts as found only with a quote found verbatim in the answer; otherwise it is missing, with
+// the model's suggestion of what to add. Each part must appear exactly once.
+export function verifyStar(raw: z.infer<typeof starResponseSchema>, answer: string): StarPart[] {
+  const parsed = starResponseSchema.parse(raw);
+  if (new Set(parsed.parts.map(p => p.part)).size !== STAR_PARTS.length) throw new Error('The STAR check must cover each part once.');
+  return STAR_PARTS.map(part => {
+    const item = parsed.parts.find(p => p.part === part)!;
+    const quote = item.quote?.trim();
+    const start = quote ? answer.indexOf(quote) : -1;
+    if (quote && start >= 0) return { part, status: 'found', quote, start, end: start + quote.length };
+    const tip = item.tip?.trim();
+    return { part, status: 'missing', ...(tip ? { tip } : {}) };
+  });
+}

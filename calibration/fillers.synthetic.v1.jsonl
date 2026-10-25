@@ -1,0 +1,44 @@
+{"id":"f01","text":"Um, I started by profiling the endpoint.","fillers":{"um":1}}
+{"id":"f02","text":"So uh, the cache was the problem.","fillers":{"uh":1}}
+{"id":"f03","text":"Basically we moved the job to a queue.","fillers":{"basically":1}}
+{"id":"f04","text":"It was, like, ten times slower at peak.","fillers":{"like":1}}
+{"id":"f05","text":"You know, the client kept retrying.","fillers":{"you know":1}}
+{"id":"f06","text":"We shipped it on Friday, you know.","fillers":{"you know":1}}
+{"id":"f07","text":"I mean, the tests were flaky anyway.","fillers":{"I mean":1}}
+{"id":"f08","text":"Matlab, humne pehle schema change kiya.","fillers":{"matlab":1}}
+{"id":"f09","text":"Hmm, I think the index was missing.","fillers":{"hmm":1}}
+{"id":"f10","text":"Umm basically I just restarted it, you know?","fillers":{"um":1,"basically":1,"you know":1}}
+{"id":"f11","text":"Like, the dashboard froze every hour.","fillers":{"like":1}}
+{"id":"f12","text":"मतलब, हमने पहले logs देखे।","fillers":{"matlab":1}}
+{"id":"f13","text":"We literally rewrote the parser in a weekend.","fillers":{"literally":1}}
+{"id":"f14","text":"Erm, I would pick Postgres here.","fillers":{"erm":1}}
+{"id":"f15","text":"The build was, uh, failing on CI.","fillers":{"uh":1}}
+{"id":"f16","text":"Basically, basically the queue was full.","fillers":{"basically":2}}
+{"id":"f17","text":"I handled the on-call, matlab, I was the first responder.","fillers":{"matlab":1}}
+{"id":"f18","text":"Uhh I mean the second approach was better.","fillers":{"uh":1}}
+{"id":"f19","text":"We had to be, like, careful with the migration.","fillers":{"like":1}}
+{"id":"f20","text":"That was basically right, but slow.","fillers":{"basically":1}}
+{"id":"f21","text":"Matlab humne retry logic add kiya. Phir sab theek tha.","fillers":{"matlab":1}}
+{"id":"f22","text":"Okay, um, so the root cause, hmm, was a missing timeout.","fillers":{"um":1,"hmm":1}}
+{"id":"n01","text":"Do you know how consistent hashing works?","fillers":{}}
+{"id":"n02","text":"I would like to lead the migration.","fillers":{}}
+{"id":"n03","text":"Iska matlab hai ki latency kam ho gayi.","fillers":{}}
+{"id":"n04","text":"What kind of database would you choose?","fillers":{}}
+{"id":"n05","text":"Things like queues and logs helped.","fillers":{}}
+{"id":"n06","text":"If you know the key, lookup is constant time.","fillers":{}}
+{"id":"n07","text":"इसका मतलब है कि हमें cache चाहिए।","fillers":{}}
+{"id":"n08","text":"We used MATLAB for the signal processing course.","fillers":{}}
+{"id":"n09","text":"MATLAB was the tool we used in the lab.","fillers":{}}
+{"id":"n10","text":"You know the answer better than me.","fillers":{}}
+{"id":"n11","text":"As you know, the API is rate limited.","fillers":{}}
+{"id":"n12","text":"Let me tell you what I mean by idempotent.","fillers":{}}
+{"id":"n13","text":"She likes Go, like me.","fillers":{}}
+{"id":"n14","text":"Kya matlab hai iska?","fillers":{}}
+{"id":"n15","text":"I mean it when I say the tests matter.","fillers":{}}
+{"id":"n16","text":"Matlab kya hai is error ka?","fillers":{}}
+{"id":"n17","text":"The umbrella service handles retries.","fillers":{}}
+{"id":"n18","text":"We hummed along until the outage.","fillers":{}}
+{"id":"m01","text":"So I was like really nervous before the demo.","fillers":{"like":1}}
+{"id":"m02","text":"Actually, I sort of owned the release.","fillers":{"actually":1,"sort of":1}}
+{"id":"m03","text":"You know what, I'd pick Kafka.","fillers":{"you know":1}}
+{"id":"m04","text":"Toh basically humne retry add kiya na.","fillers":{"basically":1}}

@@ -1,7 +1,7 @@
 import { AIConsent } from '../components/AIConsent';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api } from '../lib/api';
+import { api, type User } from '../lib/api';
 import { useAuth } from '../components/AuthProvider';
 interface Session { id: string; createdAt: string; expiresAt: string; current: boolean }
 interface Usage { rows: { _id: string; attempts: number; inputTokens: number; outputTokens: number; unknownUsage: number; estimatedCostUsd?: number; unknownCost?: number }[]; note: string }
@@ -26,6 +26,12 @@ export function Account() {
       else { setMessage(result.message || 'Done.'); await load(); }
     } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
   }
+  async function savePreference(deliveryMetrics: boolean) {
+    setBusy(true); setError(''); setMessage('');
+    try { const d = await api<{user:User}>('/account/preferences', { method: 'PATCH', body: JSON.stringify({ deliveryMetrics }) });
+      setUser(d.user); setMessage(deliveryMetrics ? 'Delivery feedback is on.' : 'Delivery feedback is off.');
+    } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
+  }
   return <div className="account-page"><h1>Account & privacy</h1><p>Manage access, your saved data and AI usage.</p>
     {error && <div className="alert error" role="alert">{error} <button className="button" onClick={load}>Retry loading</button></div>}
     {message && <p role="status">{message}</p>}
@@ -43,6 +49,9 @@ export function Account() {
       <p>Use at least 8 characters, at most 72 UTF-8 bytes.</p><button className="button primary" disabled={busy}>Change password and sign out</button></form></section>
     <section className="account-card"><h2>AI usage · last 30 days</h2><p>{usage?.note}</p>
       {!usage?.rows.length ? <p>No AI attempts recorded.</p> : <ul>{usage.rows.map(row=><li key={row._id}>{row._id === 'started' ? 'Unresolved' : row._id}: {row.attempts} attempts · {row.inputTokens} reported input tokens · {row.outputTokens} reported output tokens · {row.unknownUsage} with unknown usage</li>)}</ul>}<p>Estimated provider cost (USD): {usage?.rows.every(row => typeof row.estimatedCostUsd === 'number') ? usage.rows.reduce((sum,row)=>sum+(row.estimatedCostUsd ?? 0),0).toFixed(6) : 'unavailable'}. Unknown-cost attempts: {usage?.rows.reduce((sum,row)=>sum+(row.unknownCost ?? row.attempts),0) ?? 'unavailable'}. This is a partial estimate, not an invoice; taxes, credits and unreported charges are excluded.</p></section>
+    <section className="account-card"><h2>Delivery feedback</h2><p>When you answer by voice, Interview IQ counts your speaking pace and common filler words such as “um” and “basically”, from the transcript and recording length. These counts are never part of your score, no audio is kept, and tone, emotion and accent are not analysed.</p>
+      <label className="consent-check"><input type="checkbox" checked={user?.preferences?.deliveryMetrics !== false} disabled={busy} onChange={e => void savePreference(e.target.checked)}/> Measure and show delivery feedback for my voice answers</label>
+      <p>Turning this off stops measuring new recordings and hides existing delivery feedback.</p></section>
     <section className="account-card"><h2>Export your data</h2><p>Download your profile, saved interviews, resumes and job descriptions, and usage records as JSON.</p><a className="button" href="/api/account/export">Download my data</a></section>
     <section className="account-card"><h2>Delete account</h2><p>Deletion revokes access immediately. Background cleanup removes your profile, interviews, resumes and job descriptions, usage and sessions. Backup copies expire separately; minimal deletion receipts are retained separately to prevent restoration of deleted accounts. Cleanup waits if that safety copy is temporarily unavailable.</p>
       <form className="form-stack" onSubmit={e=>{e.preventDefault(); void action('/account/delete',{password:deletePassword,confirmation},true);}}>

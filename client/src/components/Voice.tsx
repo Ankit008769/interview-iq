@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Mic, Square, Volume2, VolumeX } from 'lucide-react';
 import { clock } from './Timing';
+import { DeliveryNote } from './Delivery';
+import type { Delivery } from '../lib/api';
 
 // Prefer local browser voices; remote/browser-managed voices may use a provider.
 export function ReadAloud({ text }: { text: string }) {
@@ -34,6 +36,8 @@ export function VoiceAnswer({ interviewId, disabled, onTranscript, onBusy }: {
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState('');
   const [draft, setDraft] = useState('');
+  const [delivery, setDelivery] = useState<Delivery | null>(null);
+  const startedAt = useRef(0);
   const recorder = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
@@ -62,7 +66,7 @@ export function VoiceAnswer({ interviewId, disabled, onTranscript, onBusy }: {
   useEffect(() => { if (state === 'recording' && seconds >= MAX_SECONDS) stop(); }, [state, seconds]);
   if (!supported) return null;
 
-  async function upload(blob: Blob, run: number) {
+  async function upload(blob: Blob, run: number, recordedMs: number) {
     if (run !== generation.current) return;
     if (blob.size > 8 * 1024 * 1024) { cancel(); setError('Recording exceeds 8 MB. Try a shorter answer or type it.'); return; }
     setState('transcribing');
@@ -70,11 +74,12 @@ export function VoiceAnswer({ interviewId, disabled, onTranscript, onBusy }: {
     const timeout = setTimeout(() => controller.abort(), 90_000);
     try {
       const response = await fetch(`/api/interviews/${interviewId}/transcribe`, { method: 'POST', body: blob, credentials: 'include',
-        headers: { 'Content-Type': blob.type.split(';')[0] || 'audio/webm' }, signal: controller.signal });
+        headers: { 'Content-Type': blob.type.split(';')[0] || 'audio/webm', 'X-Recording-Ms': String(recordedMs) }, signal: controller.signal });
       const data = await response.json().catch(() => ({}));
       if (run !== generation.current) return;
       if (!response.ok) throw new Error(data.error || 'Your recording could not be transcribed.');
       if (typeof data.transcript !== 'string' || !data.transcript.trim()) throw new Error('No speech was detected. Try again or type your answer.');
+      setDelivery(data.delivery ?? null);
       if (!transcriptCallback.current(data.transcript)) {
         setDraft(data.transcript); setError('This transcript exceeds the space left in your answer. Shorten it below, then insert it. Nothing was cut off.');
       }
@@ -88,7 +93,7 @@ export function VoiceAnswer({ interviewId, disabled, onTranscript, onBusy }: {
   async function start() {
     if (active.current || disabled) return;
     active.current = true; const run = ++generation.current;
-    setError(''); setState('requesting'); busyCallback.current(true);
+    setError(''); setDelivery(null); setState('requesting'); busyCallback.current(true);
     let stream: MediaStream | undefined;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -108,9 +113,9 @@ export function VoiceAnswer({ interviewId, disabled, onTranscript, onBusy }: {
         stream?.getTracks().forEach(track => track.stop());
         if (run !== generation.current) return;
         recorder.current = null; streamRef.current = null;
-        void upload(new Blob(chunks, { type: rec.mimeType || mimeType || 'audio/webm' }), run);
+        void upload(new Blob(chunks, { type: rec.mimeType || mimeType || 'audio/webm' }), run, Math.round(performance.now() - startedAt.current));
       };
-      recorder.current = rec; setSeconds(0); rec.start(1000); setState('recording');
+      recorder.current = rec; setSeconds(0); startedAt.current = performance.now(); rec.start(1000); setState('recording');
     } catch {
       stream?.getTracks().forEach(track => track.stop());
       if (run === generation.current) { cancel(); setError('Microphone access or recording is unavailable. You can type your answer instead.'); }
@@ -118,11 +123,12 @@ export function VoiceAnswer({ interviewId, disabled, onTranscript, onBusy }: {
   }
   return <div className="voice-answer">
     {state === 'idle' && !draft && <button type="button" className="button secondary" disabled={disabled} onClick={start}><Mic size={15}/> Answer by voice</button>}
-    {state === 'requesting' && <span role="status">Waiting for microphone permission…</span>}
-    {state === 'recording' && <button type="button" className="button primary recording" onClick={stop}><Square size={14}/> Stop recording · <span role="timer">{clock(seconds)}</span></button>}
-    {state === 'transcribing' && <span className="voice-status" role="status">Transcribing your answer…</span>}
+    {state === 'requesting' && <span role="status">Waiting for microphone permissionâ€¦</span>}
+    {state === 'recording' && <button type="button" className="button primary recording" onClick={stop}><Square size={14}/> Stop recording Â· <span role="timer">{clock(seconds)}</span></button>}
+    {state === 'transcribing' && <span className="voice-status" role="status">Transcribing your answerâ€¦</span>}
     {state !== 'idle' && <button type="button" className="button secondary" onClick={cancel}>Cancel voice answer</button>}
     <span className="voice-note">Your recording is sent for transcription, then discarded by Interview IQ. Provider retention follows its terms. Check and edit the text before you submit.</span>
+    {state === 'idle' && delivery && <DeliveryNote delivery={delivery}/>}
     {error && <p className="alert error" role="alert">{error}</p>}
     {draft && <div><label>Transcript to shorten<textarea aria-label="Transcript to shorten" value={draft} onChange={e => setDraft(e.target.value)}/></label>
       <button type="button" className="button" disabled={disabled || !draft.trim()} onClick={() => { if (transcriptCallback.current(draft)) { setDraft(''); setError(''); } }}>Insert edited transcript</button></div>}

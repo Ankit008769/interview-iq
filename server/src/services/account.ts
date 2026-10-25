@@ -16,7 +16,8 @@ export async function setSession(res: Response, user: { _id: { toString(): strin
   res.cookie('iq_session', token, { ...sessionCookie(), maxAge: 7 * 86400_000 });
 }
 export function clearSession(res: Response) { res.clearCookie('iq_session', sessionCookie()); }
-export const userView = (user: any) => ({ id: user.id, name: user.name, email: user.email, emailVerified: !!user.emailVerifiedAt });
+export const userView = (user: any) => ({ id: user.id, name: user.name, email: user.email, emailVerified: !!user.emailVerifiedAt,
+  preferences: { deliveryMetrics: user.preferences?.deliveryMetrics !== false } });
 export async function issueAccountToken(user: { _id: { toString(): string }; authVersion?: number }, purpose: 'reset' | 'verify') {
   const token = randomBytes(32).toString('hex');
   await AccountToken.create({ tokenHash: tokenHash(token), userId: user._id.toString(), version: user.authVersion ?? 0,

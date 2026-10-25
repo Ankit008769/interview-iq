@@ -1,4 +1,4 @@
-export interface User { id: string; name: string; email: string; emailVerified?: boolean }
+export interface User { id: string; name: string; email: string; emailVerified?: boolean; preferences?: { deliveryMetrics: boolean } }
 export type DocumentKind = 'resume' | 'job_description';
 export interface QuestionGrounding { documentIds: string[]; source?: { documentId: string; kind: DocumentKind; quote: string; start: number; end: number } }
 export interface CandidateDocument { id: string; kind: DocumentKind; title: string; chars: number; createdAt: string; deleting?: boolean; text?: string }
@@ -23,6 +23,12 @@ export interface ScoreChallenge {
 }
 export type RewritePart = { kind: 'answer'; text: string; quote: string; start: number; end: number } | { kind: 'addition'; text: string };
 export interface AnswerRewrite { questionIndex: number; parts: RewritePart[]; summary: string; dropped: number; createdAt: string }
+export type FillerCount = { term: string; count: number };
+export interface Delivery { seconds: number; words: number; wordsPerMinute: number | null; fillers: FillerCount[] }
+export interface DeliveryClip { questionIndex: number; seconds: number; words: number; fillers: FillerCount[]; createdAt: string }
+export type StarPart = { part: 'situation' | 'task' | 'action' | 'result'; status: 'found'; quote: string; start: number; end: number }
+  | { part: 'situation' | 'task' | 'action' | 'result'; status: 'missing'; tip?: string };
+export interface StarCheck { questionIndex: number; parts: StarPart[]; createdAt: string }
 export interface Interview {
   _id: string; userId: string; role: string; type: 'Technical' | 'Behavioral' | 'HR';
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced'; topic: string;
@@ -31,6 +37,8 @@ export interface Interview {
   turns: Turn[]; createdAt: string; completedAt?: string; feedback?: Feedback;
   challenges?: ScoreChallenge[];
   rewrites?: AnswerRewrite[];
+  deliveryClips?: DeliveryClip[];
+  starChecks?: StarCheck[];
   timeLimitSeconds?: number; questionStartedAt?: string; pausedAt?: string; pausedMs?: number;
   answered?: number;
   processingState?: 'ready' | 'queued' | 'processing' | 'failed';

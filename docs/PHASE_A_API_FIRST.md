@@ -42,7 +42,9 @@ voice, resume/JD grounding and Hindi/Hinglish. B1 turn-based voice and read-alou
 implemented and tested ([VOICE_ANSWERS.md](VOICE_ANSWERS.md)); transcription accuracy
 is not yet measured. B3 v1 resume/JD grounding (pasted text, verified source lines, complete
 deletion of derived questions) is implemented and tested ([RESUME_JD_GROUNDING.md](RESUME_JD_GROUNDING.md));
-question relevance is not yet rated. C adds isolated coding, system design,
+question relevance is not yet rated. B4 v1 delivery feedback (pace and precision-first filler counts from voice
+transcripts, with an off switch) and quote-verified STAR checks are implemented and tested
+([DELIVERY_AND_STAR.md](DELIVERY_AND_STAR.md)); filler precision on real transcripts is not yet measured. C adds isolated coding, system design,
 project defense and adaptive practice; training is conditional. D adds campus tools,
 billing and an optional offline client. E covers scale and research after usage
 justifies it. Employer assessment remains a separate, reviewed product decision.

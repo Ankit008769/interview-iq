@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { AnswerRewrite, CriterionRating, Feedback, ScoreChallenge, Turn } from '../lib/api';
+import type { AnswerRewrite, CriterionRating, Feedback, ScoreChallenge, StarCheck, Turn } from '../lib/api';
 import { TurnTiming } from './Timing';
 import { QuestionSource } from './Grounding';
 
@@ -88,9 +88,31 @@ function StrongerVersion({ rewrite, onRewrite }: { rewrite?: AnswerRewrite; onRe
   </div>;
 }
 
-export function EvidenceReview({ turn, index, criteria, challenges = [], canChallenge = false, onChallenge, rewrite, onRewrite, limit }:
+const STAR_LABELS = { situation: 'Situation', task: 'Task', action: 'Action', result: 'Result' } as const;
+function StarCoverage({ check, onCheck }: { check?: StarCheck; onCheck?: () => Promise<void> }) {
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  if (check) return <section className="rewrite-box star-box" aria-label="STAR structure of this answer">
+    <h5>STAR structure</h5>
+    <ul className="star-parts">{check.parts.map(p => <li key={p.part} className={p.status}>
+      <b>{STAR_LABELS[p.part]}</b>{p.status === 'found' ? <span>Found: “{p.quote}”</span> : <span>Not found.{p.tip ? ` ${p.tip}` : ''}</span>}</li>)}</ul>
+    <p className="challenge-note">Coaching only; it does not change your score. A part counts as found only when its words appear in your answer.</p>
+  </section>;
+  if (!onCheck) return null;
+  return <div className="rewrite-box">
+    <button type="button" className="button secondary" disabled={sending} onClick={async () => {
+      setSending(true); setError('');
+      try { await onCheck(); } catch (e) { setError(e instanceof Error ? e.message : 'Your answer could not be checked.'); }
+      finally { setSending(false); }
+    }}>{sending ? 'Checking the STAR structure…' : 'Check STAR structure'}</button>
+    <p className="challenge-note">Shows which parts of situation, task, action and result your answer states, quoting your own words.</p>
+    {error && <p className="alert error">{error}</p>}
+  </div>;
+}
+
+export function EvidenceReview({ turn, index, criteria, challenges = [], canChallenge = false, onChallenge, rewrite, onRewrite, star, onStar, limit }:
   { turn: Turn; index: number; criteria: CriterionRating[]; challenges?: ScoreChallenge[]; canChallenge?: boolean; onChallenge?: ChallengeRequest;
-    rewrite?: AnswerRewrite; onRewrite?: () => Promise<void>; limit?: number }) {
+    rewrite?: AnswerRewrite; onRewrite?: () => Promise<void>; star?: StarCheck; onStar?: () => Promise<void>; limit?: number }) {
   const [selected, setSelected] = useState<string | null>(null);
   const evidence = criteria.find(c => c.criterionId === selected)?.evidence;
   const verified = evidence && turn.answer.slice(evidence.start, evidence.end) === evidence.quote;
@@ -114,5 +136,6 @@ export function EvidenceReview({ turn, index, criteria, challenges = [], canChal
         canChallenge={canChallenge} onChallenge={onChallenge} />
     </section>)}</div>
     <StrongerVersion rewrite={rewrite} onRewrite={onRewrite} />
+    <StarCoverage check={star} onCheck={onStar} />
   </article>;
 }

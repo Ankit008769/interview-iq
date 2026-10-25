@@ -7,12 +7,13 @@ import { z } from 'zod';
 import { User } from '../models/User.js';
 import { Interview } from '../models/Interview.js';
 import { AuthRequest, requireAuth } from '../middleware/auth.js';
-import { generateQuestion, interviewMode, rewriteAnswer } from '../services/ai.js';
+import { checkStar, generateQuestion, interviewMode, rewriteAnswer } from '../services/ai.js';
 import { consumeAIQuota, consumeQuota, quotaLimit } from '../services/quotas.js';
 import { MAX_CHALLENGES_PER_INTERVIEW } from '../services/challenges.js';
 import { providerConfig, transcribeAudio } from '../services/modelProvider.js';
 import { randomUUID } from 'node:crypto';
 import { groundingDocuments, removeDerivedQuestions } from '../services/documents.js';
+import { analyzeDelivery } from '../services/delivery.js';
 
 // Accepted recording formats, each checked against its leading bytes rather than trusting the header.
 const audioSignatures: Record<string, (b: Buffer) => boolean> = {
@@ -49,7 +50,7 @@ const challengeSchema = z.object({
   reason: z.string().trim().min(10).max(500),
   submissionId: z.string().min(1).max(100),
 });
-const rewriteRequestSchema = z.object({ questionIndex: z.number().int().min(0).max(4) });
+const answerIndexSchema = z.object({ questionIndex: z.number().int().min(0).max(4) });
 const aiLimit: RequestHandler = async (req, _res, next) => {
   try { await consumeQuota(userId(req), 'interview requests', quotaLimit('INTERVIEW_WRITES_PER_15_MIN', 40), 900_000); next(); }
   catch (err) { next(err); }
@@ -67,7 +68,7 @@ router.get('/mode', (_req, res) => res.json({ mode: interviewMode(), transcripti
 router.post('/:id/transcribe', aiLimit, audioBody, async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) { res.status(404).json({ error: 'Interview not found.' }); return; }
-    const doc = await Interview.findOne({ _id: req.params.id, userId: userId(req) }).select('mode status processingState pausedAt');
+    const doc = await Interview.findOne({ _id: req.params.id, userId: userId(req) }).select('mode status processingState pausedAt turns.questionIndex');
     if (!doc) { res.status(404).json({ error: 'Interview not found.' }); return; }
     if (!providerConfig().transcriptionModel) { res.status(409).json({ error: 'Voice answers are not enabled on this server.' }); return; }
     if (doc.mode !== 'ai' || doc.status !== 'in_progress' || doc.processingState !== 'ready' || doc.pausedAt) {
@@ -88,7 +89,19 @@ router.post('/:id/transcribe', aiLimit, audioBody, async (req, res, next) => {
       res.status(502).json({ error: 'Your recording could not be transcribed. Please try again or type your answer.' }); return;
     }
     if (!text) { res.status(422).json({ error: 'No speech was detected. Try again closer to the microphone, or type your answer.' }); return; }
-    res.json({ transcript: text });
+    // Pace and filler counts come from the transcript and the browser's recording length, unless the candidate
+    // turned delivery feedback off. Only counts are kept, for the question that is still on screen.
+    const recordedMs = Number(req.headers['x-recording-ms']);
+    const measure = Number.isInteger(recordedMs) && recordedMs >= 1000 && recordedMs <= 330_000
+      && (await User.findById(userId(req)).select('preferences'))?.preferences?.deliveryMetrics !== false;
+    const delivery = measure ? analyzeDelivery(text, Math.round(recordedMs / 1000)) : undefined;
+    if (delivery) {
+      const questionIndex = doc.turns.length;
+      const { seconds, words, fillers, version } = delivery;
+      await Interview.updateOne({ _id: doc._id, userId: userId(req), status: 'in_progress', [`turns.${questionIndex}`]: { $exists: false } },
+        { $push: { deliveryClips: { $each: [{ questionIndex, seconds, words, fillers, version, createdAt: new Date() }], $slice: -50 } } });
+    }
+    res.json({ transcript: text, ...(delivery ? { delivery } : {}) });
   } catch (err) { next(err); }
 });
 router.get('/dashboard', async (req, res, next) => {
@@ -301,7 +314,7 @@ router.post('/:id/challenges', aiLimit, async (req, res, next) => {
 router.post('/:id/rewrites', aiLimit, async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) { res.status(404).json({ error: 'Interview not found.' }); return; }
-    const parsed = rewriteRequestSchema.safeParse(req.body);
+    const parsed = answerIndexSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: 'Choose an answer to rewrite.' }); return; }
     const { questionIndex } = parsed.data;
     const doc = await Interview.findOne({ _id: req.params.id, userId: userId(req) });
@@ -326,6 +339,37 @@ router.post('/:id/rewrites', aiLimit, async (req, res, next) => {
     // A concurrent request may have saved one first; keep that one and return it.
     const updated = await Interview.findOneAndUpdate({ _id: doc._id, userId: userId(req), 'rewrites.questionIndex': { $ne: questionIndex } },
       { $push: { rewrites: { questionIndex, ...rewrite, createdAt: new Date() } } }, { new: true, runValidators: true })
+      ?? await Interview.findOne({ _id: doc._id, userId: userId(req) });
+    if (!updated) { res.status(404).json({ error: 'Interview not found.' }); return; }
+    res.status(201).json({ interview: updated, mode: updated.mode ?? interviewMode() });
+  } catch (err) { next(err); }
+});
+// One STAR structure check per behavioral answer, generated synchronously like rewrites. Never changes a score.
+router.post('/:id/star', aiLimit, async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) { res.status(404).json({ error: 'Interview not found.' }); return; }
+    const parsed = answerIndexSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: 'Choose an answer to check.' }); return; }
+    const { questionIndex } = parsed.data;
+    const doc = await Interview.findOne({ _id: req.params.id, userId: userId(req) });
+    if (!doc) { res.status(404).json({ error: 'Interview not found.' }); return; }
+    if (doc.starChecks.some(c => c.questionIndex === questionIndex)) { res.json({ interview: doc, mode: doc.mode ?? interviewMode(), replayed: true }); return; }
+    if (doc.type !== 'Behavioral' || doc.status !== 'completed' || doc.feedback?.source !== 'ai' || !doc.turns[questionIndex]) {
+      res.status(409).json({ error: 'A STAR check is available for answers in completed AI behavioral interviews.' }); return;
+    }
+    await requireAIConsent(userId(req));
+    await consumeAIQuota(userId(req));
+    let check;
+    try {
+      check = await checkStar({ usageContext: { userId: userId(req), interviewId: doc.id }, role: doc.role, type: doc.type,
+        difficulty: doc.difficulty, topic: doc.topic, turn: doc.turns[questionIndex] });
+    } catch (err) {
+      if (err instanceof ConsentRequiredError) throw err;
+      operationalEvent('star_check_failure', 'WARNING');
+      res.status(502).json({ error: 'Your answer could not be checked. Please try again.' }); return;
+    }
+    const updated = await Interview.findOneAndUpdate({ _id: doc._id, userId: userId(req), 'starChecks.questionIndex': { $ne: questionIndex } },
+      { $push: { starChecks: { questionIndex, ...check, createdAt: new Date() } } }, { new: true, runValidators: true })
       ?? await Interview.findOne({ _id: doc._id, userId: userId(req) });
     if (!updated) { res.status(404).json({ error: 'Interview not found.' }); return; }
     res.status(201).json({ interview: updated, mode: updated.mode ?? interviewMode() });

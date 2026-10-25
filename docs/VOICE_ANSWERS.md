@@ -35,6 +35,10 @@ rewrites work unchanged on spoken answers.
 
 ## API
 
+The browser also sends the recording length as `X-Recording-Ms`; the server then returns
+pace and filler counts as `delivery` and stores only those counts, unless the candidate
+turned delivery feedback off ([DELIVERY_AND_STAR.md](DELIVERY_AND_STAR.md)).
+
 `POST /api/interviews/:id/transcribe` with the raw recording as the body and its type
 as `Content-Type`. Returns the full `{ transcript }`. The answer remains limited to 3,500 characters;
 long transcripts are preserved in an editable recovery box instead of truncated.
@@ -67,7 +71,7 @@ editing before submit, the saved answer and read-aloud.
 Not yet measured: transcription accuracy for Indian English and Hinglish. B5 adds the
 test sets, and IndicConformer routing if needed.
 
-## Reliability follow-up — 25 October 2026
+## Reliability follow-up â€” 25 October 2026
 
 Voice permission requests, recording and transcription can be cancelled. Navigation
 or a question change stops all microphone tracks and aborts the local upload; a late

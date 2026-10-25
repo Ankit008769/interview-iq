@@ -34,14 +34,20 @@ host.use(cookieParser());
 host.post('/__test/enable-ai', requireAuth, (_req,res)=>{process.env.AI_PROVIDER='openai';process.env.OPENAI_API_KEY='test-only-not-real';res.sendStatus(204);});
 host.post('/__test/disable-ai', (_req,res)=>{process.env.AI_PROVIDER='practice';delete process.env.OPENAI_API_KEY;res.sendStatus(204);});
 // Loopback OpenAI-compatible stand-in. Transcriptions return a fixed sentence; new questions are
-// numbered, and tailored ones cite the first line of the first document; for the seeded evidence answer, rewrites restate both seeded sentences plus one bracketed
+// numbered, and tailored ones cite the first line of the first document; STAR checks of the seeded behavioral
+// answer find three parts and miss the result; for the seeded evidence answer, rewrites restate both seeded sentences plus one bracketed
 // prompt and second reviews rate the seeded quote 5.
 const gateway = createServer(async (req, res) => {
   let body = ''; for await (const chunk of req) body += chunk;
   res.setHeader('content-type', 'application/json');
   if (req.url?.endsWith('/audio/transcriptions')) { res.end(JSON.stringify({ text: 'Arrays give constant-time indexed access.' })); return; }
   const input = JSON.parse(JSON.parse(body).messages[1].content);
-  const value = input.ratings !== undefined
+  const value = input.starParts ? { parts: [
+      { part: 'situation', quote: 'our demo server crashed a day before the review', tip: null },
+      { part: 'task', quote: 'I had to restore it before the panel met', tip: null },
+      { part: 'action', quote: 'I rebuilt it from backups', tip: null },
+      { part: 'result', quote: null, tip: 'Add how the review went, if you know it.' }] }
+    : input.ratings !== undefined
     ? { summary: 'Leads with the contrast between the two structures.', parts: [
       { kind: 'answer', text: 'Arrays give direct indexed access.', quote: 'Arrays allow indexed access.' },
       { kind: 'answer', text: 'Linked lists must be walked to reach an element.', quote: 'Linked lists require traversal.' },
@@ -79,6 +85,20 @@ host.post('/__test/seed-evidence', requireAuth, async (req, res) => {
     completedAt: new Date(), feedback: { source: 'ai', ...summarizeEvidence(answers), rubric, answers,
       generation: { provider: 'test', model: 'deterministic-fixture', promptVersion: 'evidence-judge.v1',
         inputHash: '0'.repeat(64), inputTokens: 10, outputTokens: 20, latencyMs: 1 } } });
+  res.json({ id: doc.id });
+});
+// A completed AI behavioral interview with delivery counts from three voice recordings.
+host.post('/__test/seed-behavioral', requireAuth, async (req, res) => {
+  const answer = 'In my final-year project our demo server crashed a day before the review. I had to restore it before the panel met. I rebuilt it from backups and wrote a recovery script.';
+  const turns = [0, 1].map(i => ({ question: `Tell me about a setback ${i + 1}.`, answer, topic: 'Behavioral', answeredAt: new Date(), questionIndex: i, submissionId: `behavioral-${i}` }));
+  const rubric = rubricFor('Behavioral');
+  const answers = verifyEvidence({ answers: turns.map((_, questionIndex) => ({ questionIndex,
+    criteria: rubric.criteria.map(c => ({ criterionId: c.id, score: 3, quote: 'I rebuilt it from backups', rationale: 'You describe your action.', improvement: 'Add the result.' })) })) }, turns, 'Behavioral');
+  const clip = (questionIndex: number, seconds: number, words: number, fillers: { term: string; count: number }[]) => ({ questionIndex, seconds, words, fillers, version: 'delivery.v1' });
+  const doc = await Interview.create({ userId: (req as AuthRequest).userId, role: 'Behavioral test', type: 'Behavioral', difficulty: 'Intermediate',
+    topic: 'Behavioral', totalQuestions: 2, currentQuestion: 'Tell me about a setback.', currentTopic: 'Behavioral', turns, mode: 'ai', status: 'completed',
+    completedAt: new Date(), feedback: { source: 'ai', ...summarizeEvidence(answers), rubric, answers },
+    deliveryClips: [clip(0, 30, 60, [{ term: 'basically', count: 2 }, { term: 'um', count: 1 }]), clip(0, 15, 30, [{ term: 'you know', count: 1 }]), clip(1, 20, 40, [])] });
   res.json({ id: doc.id });
 });
 host.post('/__test/seed-history', requireAuth, async (req, res) => {
