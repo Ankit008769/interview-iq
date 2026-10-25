@@ -1,5 +1,5 @@
 import { agreementRates, icc1, iccA1, weightedKappa } from './stats.js';
-import { criteriaFor, RUBRIC_VERSION, type AuditRow, type CalibrationItem, type HumanRating, type ModelRating } from './dataset.js';
+import { criteriaFor, datasetHash, modelFingerprint, modelRatingSchema, RUBRIC_VERSION, type AuditRow, type CalibrationItem, type HumanRating, type ModelRating } from './dataset.js';
 
 // Phase A gates from the strategy report (section 10.2). A verdict needs at least minUnits rated units.
 export const GATES = { humanIcc: 0.7, judgeIcc: 0.6, unsupportedRate: 0.05, minUnits: 30 };
@@ -8,11 +8,14 @@ type Unit = { itemId: string; criterionId: string; group: string; quality?: stri
 type Gate = { name: string; target: string; value: number | null; units: number; verdict: 'pass' | 'fail' | 'insufficient data' };
 
 const average = (xs: number[]) => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
-// Mean of numeric human scores, or null (insufficient evidence) when most raters chose IE.
+// Mean of the balanced pair, null when both chose IE, undefined without consensus.
 function consensus(unit: Unit): number | null | undefined {
-  if (!unit.human.length) return undefined;
-  const scored = unit.human.flatMap(r => r.score === null ? [] : [r.score]);
-  return scored.length * 2 >= unit.human.length ? average(scored) : null;
+  if (unit.human.length < 2) return undefined;
+  const panel = [...unit.human].sort((a, b) => a.raterId.localeCompare(b.raterId)).slice(0, 2);
+  const scored = panel.flatMap(r => r.score === null ? [] : [r.score]);
+  // A split numeric/IE pair has no consensus; do not silently discard the IE vote.
+  if (scored.length === 1) return undefined;
+  return average(scored);
 }
 
 function panel(units: Unit[]) {
@@ -51,12 +54,40 @@ const verdict = (value: number | null, units: number, ok: (v: number) => boolean
   value === null || units < GATES.minUnits ? 'insufficient data' : ok(value) ? 'pass' : 'fail';
 
 export function buildReport(items: CalibrationItem[], human: HumanRating[], model: ModelRating[] = [], audit: AuditRow[] = []) {
+  if (!items.length || new Set(items.map(i => i.id)).size !== items.length) throw new Error('A non-empty unique dataset is required.');
+  const hash = datasetHash(items), byId = new Map(items.map(i => [i.id, i]));
   const units = new Map<string, Unit>();
   for (const item of items) for (const c of criteriaFor(item)) {
     units.set(`${item.id}|${c.id}`, { itemId: item.id, criterionId: c.id, group: `${item.type} · ${c.label}`, quality: item.intendedQuality, human: [] });
   }
-  for (const r of human) units.get(`${r.itemId}|${r.criterionId}`)?.human.push(r);
-  for (const m of model) { const unit = units.get(`${m.itemId}|${m.criterionId}`); if (unit) unit.model = m; }
+  const seenHuman = new Set<string>();
+  for (const r of human) {
+    const unit = units.get(`${r.itemId}|${r.criterionId}`), key = `${r.itemId}|${r.criterionId}|${r.raterId}`;
+    if (!unit || !r.raterId.trim() || seenHuman.has(key) || (r.score !== null && (!Number.isInteger(r.score) || r.score < 0 || r.score > 5)) ||
+        (r.datasetHash && r.datasetHash !== hash) ||
+        (r.quote && !byId.get(r.itemId)!.answer.includes(r.quote))) throw new Error('Invalid or duplicate human rating; check all input files.');
+    seenHuman.add(key); unit.human.push(r);
+  }
+  for (const raw of model) {
+    const m = modelRatingSchema.parse(raw), unit = units.get(`${m.itemId}|${m.criterionId}`);
+    if (!unit || unit.model || m.rubricVersion !== RUBRIC_VERSION || (m.datasetHash && m.datasetHash !== hash) ||
+        (m.quote && !byId.get(m.itemId)!.answer.includes(m.quote))) throw new Error('Invalid, duplicate or mismatched model rating.');
+    unit.model = m;
+  }
+  if (new Set(model.map(m => `${m.model}|${m.promptVersion}|${m.rubricVersion}`)).size > 1) throw new Error('Use one model, prompt and rubric per calibration report.');
+  const auditSeen = new Set<string>(), audited = new Map<string, AuditRow>();
+  const severity = { yes: 0, partly: 1, no: 2 };
+  for (const a of audit) {
+    const key = `${a.itemId}|${a.criterionId}`, identity = `${key}|${a.auditorId}`, m = units.get(key)?.model;
+    if (!m || m.score === null || !a.auditorId?.trim() || auditSeen.has(identity) || !(a.supported in severity)) throw new Error('Audit must uniquely reference a scored model rating and an auditor.');
+    if (a.modelFingerprint && a.modelFingerprint !== modelFingerprint(m)) throw new Error('Audit fingerprint does not match this model response; generate a new audit sheet.');
+    auditSeen.add(identity);
+    const previous = audited.get(key);
+    if (!previous || severity[a.supported] > severity[previous.supported]) audited.set(key, a);
+  }
+  // Count each claim once, using the most conservative review when auditors disagree.
+  const allAuditsBound = audit.every(a => Boolean(a.modelFingerprint));
+  audit = [...audited.values()];
   const all = [...units.values()];
   const groups = [...new Set(all.map(u => u.group))];
   const humanPanel = panel(all);
@@ -76,8 +107,19 @@ export function buildReport(items: CalibrationItem[], human: HumanRating[], mode
     { name: 'Unsupported AI claims (audit)', target: `< ${GATES.unsupportedRate * 100}%`, value: auditSummary?.unsupportedRate ?? null, units: auditSummary?.audited ?? 0,
       verdict: verdict(auditSummary?.unsupportedRate ?? null, auditSummary?.audited ?? 0, v => v < GATES.unsupportedRate) },
   ];
+  const blockers: string[] = [];
+  const realItems = items.filter(i => i.source !== 'synthetic').length;
+  if (realItems < 500) blockers.push('At least 500 licensed or research-consented real answers are required; synthetic pilot results are not a release validation.');
+  if (all.some(u => u.human.length < 2)) blockers.push('Every criterion needs two independent human ratings.');
+  if (human.some(r => r.datasetHash !== hash)) blockers.push('Human rating sheets must carry the matching dataset fingerprint.');
+  if (all.some(u => !u.model)) blockers.push('Every criterion needs a model rating; incomplete runs cannot validate a release.');
+  if (!model.length || model.some(m => m.datasetHash !== hash)) blockers.push('Model ratings must carry the matching dataset fingerprint.');
+  if (!allAuditsBound) blockers.push('Audit sheets must carry fingerprints matching the exact model responses.');
+  if (all.some(u => u.model?.score !== null && u.model && !audited.has(`${u.itemId}|${u.criterionId}`))) blockers.push('Every scored model claim needs an evidence audit.');
+  if (gates.some(g => g.verdict !== 'pass')) blockers.push('All three statistical gates must pass.');
   return {
-    generatedAt: new Date().toISOString(), rubricVersion: RUBRIC_VERSION, items: items.length, units: all.length,
+    generatedAt: new Date().toISOString(), datasetHash: hash, rubricVersion: RUBRIC_VERSION, items: items.length, units: all.length,
+    releaseReadiness: { ready: blockers.length === 0, realItems, blockers },
     sources: [...new Set(items.map(i => i.source))], raters: [...new Set(human.map(r => r.raterId))].sort(), ratings: human.length,
     models: [...new Set(model.map(m => `${m.model} · ${m.promptVersion} · rubric ${m.rubricVersion}`))],
     human: humanPanel, judge: judgeAll, audit: auditSummary, intended, gates,
@@ -94,6 +136,9 @@ export function renderMarkdown(report: CalibrationReport, problems: string[] = [
     '# InterviewIQ evaluator calibration report', '',
     `Generated ${report.generatedAt} · rubric ${report.rubricVersion} · ${report.items} items (${report.sources.join(', ')}) · ${report.units} rated units`,
     `Raters: ${report.raters.join(', ') || 'none'} (${report.ratings} ratings) · AI judge: ${report.models.join('; ') || 'not included'}`, '',
+    `Release readiness: **${report.releaseReadiness.ready ? 'eligible for human release review' : 'not ready'}**`,
+    ...report.releaseReadiness.blockers.map(b => `- ${b}`), '',
+    `Dataset fingerprint: ${report.datasetHash}`, '',
     '## Gates', '', '| Gate | Target | Value | Units | Verdict |', '|---|---|---|---|---|',
     ...report.gates.map(g => `| ${g.name} | ${g.target} | ${g.name.startsWith('Unsupported') ? pct(g.value) : num(g.value)} | ${g.units} | **${g.verdict}** |`), '',
     `A verdict needs at least ${GATES.minUnits} scored units. Phase C raises the AI judge target to ICC ≥ 0.75.`, '',

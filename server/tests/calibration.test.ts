@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { agreementRates, icc1, iccA1, weightedKappa } from '../src/calibration/stats.js';
 import { parseCsv, writeCsv } from '../src/calibration/csv.js';
-import { auditTemplate, parseAudit, parseHumanRatings, parseItems, ratingTemplate, type CalibrationItem, type HumanRating, type ModelRating } from '../src/calibration/dataset.js';
+import { auditTemplate, datasetHash, modelFingerprint, parseAudit, parseHumanRatings, parseItems, parseModelRatings, ratingTemplate, type CalibrationItem, type HumanRating, type ModelRating } from '../src/calibration/dataset.js';
 import { buildReport, renderMarkdown } from '../src/calibration/report.js';
 import { runJudge } from '../src/calibration/judge.js';
 import { rubricFor } from '../src/services/rubrics.js';
@@ -101,6 +101,50 @@ function syntheticRatings(subset: CalibrationItem[]) {
 }
 
 describe('calibration report', () => {
+  it('requires complete, fingerprinted coverage even when a large fixture meets statistical gates', () => {
+    // In-memory fixtures test the gate only; these are not real licensed data or human judgments.
+    const large = Array.from({length:500},(_,i)=>({...items[i%items.length],id:`fixture-${i}`,source:'licensed' as const}));
+    const fixture=syntheticRatings(large), hash=datasetHash(large);
+    const human=fixture.human.map(r=>({...r,datasetHash:hash}));
+    const model=fixture.model.map(r=>({...r,datasetHash:hash}));
+    const audit=model.map(r=>({itemId:r.itemId,criterionId:r.criterionId,auditorId:'A01',supported:'yes' as const,modelFingerprint:modelFingerprint(r)}));
+    expect(buildReport(large,human,model,audit).releaseReadiness.ready).toBe(true);
+    expect(buildReport(large,human.slice(1),model,audit).releaseReadiness.ready).toBe(false);
+    expect(buildReport(large,human,model,audit.slice(1)).releaseReadiness.ready).toBe(false);
+    expect(buildReport(large,human,model,audit.map(({modelFingerprint,...r})=>r)).releaseReadiness.ready).toBe(false);
+  });
+  it('rejects duplicate ratings across files, unknown claims, mixed versions and unrelated audits', () => {
+    const {human, model} = syntheticRatings(items);
+    expect(() => buildReport(items, [...human, human[0]], model)).toThrow(/duplicate human/);
+    expect(() => buildReport(items, [{...human[0],datasetHash:'b'.repeat(64)}], model)).toThrow(/Invalid/);
+    expect(() => buildReport(items, human, [...model, model[0]])).toThrow(/duplicate/);
+    expect(() => buildReport(items, human, [{...model[0], itemId:'unknown'}])).toThrow(/Invalid/);
+    expect(() => buildReport(items, human, [{...model[0], rubricVersion:'old'}])).toThrow(/mismatched/);
+    expect(() => buildReport(items, human, [{...model[0], datasetHash:'a'.repeat(64)}])).toThrow(/mismatched/);
+    expect(() => buildReport(items, human, [{...model[0], quote:'fabricated quote'}])).toThrow(/Invalid/);
+    expect(() => buildReport(items, human, [model[0], {...model[1], model:'another-model'}])).toThrow(/one model/);
+    const audit = {itemId:model[0].itemId,criterionId:model[0].criterionId,auditorId:'A01',supported:'yes' as const};
+    expect(() => buildReport(items, human, model, [audit, audit])).toThrow(/uniquely/);
+    expect(() => buildReport(items, human, model, [{...audit,itemId:'unknown'}])).toThrow(/uniquely/);
+    expect(() => buildReport(items, human, model, [{...audit,modelFingerprint:'a'.repeat(64)}])).toThrow(/fingerprint/);
+    expect(() => parseModelRatings(JSON.stringify({...model[0],score:9}))).toThrow(/line 1/);
+    const report=buildReport(items,human,model,[audit,{...audit,auditorId:'A02',supported:'no'}]);
+    expect(report.audit).toMatchObject({audited:1,unsupportedRate:1});
+  });
+
+  it('requires independent consensus and keeps synthetic statistical passes separate from release readiness', () => {
+    const {human,model}=syntheticRatings(items);
+    expect(buildReport(items,human.filter(r=>r.raterId==='R01'),model).judge?.scoredPairs).toBe(0);
+    const split=human.map(r=>r.raterId==='R02'?{...r,score:null}:r);
+    expect(buildReport(items,split,model).judge?.scoredPairs).toBe(0);
+    const bound=model.map(m=>({...m,datasetHash:datasetHash(items)}));
+    const audit=bound.map(m=>({itemId:m.itemId,criterionId:m.criterionId,auditorId:'A01',supported:'yes' as const}));
+    const report=buildReport(items,human,bound,audit);
+    expect(report.gates.every(g=>g.verdict==='pass')).toBe(true);
+    expect(report.releaseReadiness.ready).toBe(false);
+    expect(report.releaseReadiness.blockers.join(' ')).toContain('500');
+    expect(renderMarkdown(report)).toContain('**not ready**');
+  });
   it('passes the gates when agreement is high and flags failures and thin data', () => {
     const { human, model } = syntheticRatings(items);
     const audit = model.slice(0, 40).map((m, i) => ({ itemId: m.itemId, criterionId: m.criterionId, auditorId: 'A01', supported: (i === 0 ? 'no' : 'yes') as 'yes' | 'no' }));
@@ -179,5 +223,7 @@ describe('calibration command line', () => {
     expect(output).toMatch(/INSUFFICIENT DATA\s+AI judge/);
     expect(readFileSync(join(dir, 'report.md'), 'utf8')).toContain('# InterviewIQ evaluator calibration report');
     expect(JSON.parse(readFileSync(join(dir, 'report.json'), 'utf8')).raters).toEqual(['R01', 'R02']);
+    expect(() => run('report', '--items', itemsPath, '--ratings', `${join(dir, 'R01.csv')},${join(dir, 'R01.csv')}`, '--out', join(dir, 'duplicate.md'))).toThrow(/duplicate human/);
+    expect(() => run('template', '--items', itemsPath, '--rater', 'R02', '--out', join(dir, 'R01.csv'))).toThrow(/already exists/);
   }, 60_000);
 });

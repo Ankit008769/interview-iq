@@ -18,6 +18,23 @@ judging the AI. The report also shows quadratic-weighted kappa, exact and within
 agreement, how often raters agree on "insufficient evidence", the AI's mean bias, and
 mean human scores by intended quality as a sanity check.
 
+Statistical gate passes are **not release readiness**. The report separately requires
+at least 500 licensed or research-consented real answers, two human ratings and a
+model rating for every criterion, a matching dataset fingerprint on human and model ratings,
+an exact-response fingerprint on evidence audits, every scored model claim audited,
+and all three statistical gates passing. Synthetic data can pilot the workflow but
+cannot satisfy the real-answer requirement. A ready report is eligible for human
+release review; it does not change the app's uncalibrated label or activate a provider.
+Verify rater independence, research permission, population coverage and reviewer
+qualifications outside the tool; pseudonymous IDs cannot prove these properties.
+
+The first two raters by ID form the balanced panel and consensus. A numeric/IE split
+does not establish consensus. Audit statistics count distinct claims rather than
+review rows; disagreement uses the most conservative verdict. Duplicate human votes
+(including across files), duplicate same-auditor reviews, unknown references, invalid
+scores/quotes, mixed model/prompt versions and stale fingerprints are rejected.
+Unfingerprinted legacy data can support exploratory statistics but not release readiness.
+
 ## Data rules
 
 - Calibration items are JSONL (`calibration/*.jsonl`): id, type, role, difficulty,
@@ -49,11 +66,15 @@ Run from `server/`.
    Every unit needs at least two raters.
 3. **AI judge run** with the production evaluator (same prompt, rubric and quote
    verification as users get). It sends every item to the configured provider, so it
-   first prints a summary and only proceeds with `--yes`. It refuses to run with
+   first prints a summary and only proceeds with `--reviewed --yes`. It refuses to run with
    `NODE_ENV=production` or in practice mode.
    ```sh
-   npm run calibration -- judge --items ../calibration/items.synthetic.v1.jsonl --out ../calibration/output/model.jsonl --yes
+   npm run calibration -- judge --items ../calibration/items.synthetic.v1.jsonl --out ../calibration/output/model.jsonl --reviewed --yes
    ```
+   Default cap is 25 items; use `--max-items` for a larger reviewed set (maximum 1000).
+   Prefer the checkpointed comparison runner and `export-calibration` from
+   [USAGE_COST_AND_COMPARISON.md](USAGE_COST_AND_COMPARISON.md) when comparing candidates:
+   it retains failed attempts and avoids paying for a second calibration pass.
 4. **Evidence audit sheet** (shows the AI's scored ratings, quote and rationale):
    ```sh
    npm run calibration -- audit-template --items ../calibration/items.synthetic.v1.jsonl --model ../calibration/output/model.jsonl --auditor A01 --out ../calibration/ratings/audit-A01.csv
@@ -62,8 +83,10 @@ Run from `server/`.
    ```sh
    npm run calibration -- report --items ../calibration/items.synthetic.v1.jsonl --ratings ../calibration/ratings/R01.csv,../calibration/ratings/R02.csv --model ../calibration/output/model.jsonl --audit ../calibration/ratings/audit-A01.csv --out ../calibration/output/report.md
    ```
-   Input problems (bad scores, unknown IDs, duplicate ratings, evidence quotes not
-   found in the answer) are listed in the report rather than silently dropped.
+   Invalid input fails the command before any report is written. Blank unfinished
+   rows remain permitted, but coverage gaps block release readiness. Existing output
+   files are never overwritten. Keep the dataset frozen after producing model runs
+   and rating sheets; regenerate artifacts for a new round after editing items.
 
 Record each round's item set, rubric version, judge model and prompt version (all in
 the report header), and keep reports with the release notes. A rubric or prompt change
@@ -77,3 +100,8 @@ Shrout & Fleiss (1979) example, kappa against a hand-computed case, CSV round-tr
 rating validation, gate verdicts (pass, fail and insufficient data), handling of
 insufficient evidence, the judge run with a stub evaluator, the audit sheet, and the
 command line end to end.
+
+The comparison CLI integration test makes two HTTP calls to a local fixture gateway,
+exports the retained scorecards without further calls, and rejects changed datasets
+and missing criteria. These fixtures are software tests, not human ratings or measured
+provider quality. Paid candidates and independent human review remain pending.

@@ -25,7 +25,7 @@ it('rejects overlapping or malformed cards and allows distinct time windows',()=
 });
 const items=parseItems(JSON.stringify({id:'one',type:'Technical',role:'Developer',difficulty:'Beginner',topic:'Arrays',question:'What is indexed access?',answer:'An array supports direct indexed access.',source:'synthetic'}));
 const metadata={label:'a',provider:'openai',endpoint:rate.endpoint,requestedModel:rate.model,reviewed:true};
-const feedback:any={answers:[{criteria:[{score:3,evidence:{quote:'array'}}]}],generation:{model:rate.model,promptVersion:'prompt.v1',inputTokens:1000,outputTokens:100,cost:{amountUsd:0.0028,reason:'estimated',rate}}};
+const feedback:any={answers:[{criteria:[{criterionId:'correctness',rationale:'Fixture rationale',score:3,evidence:{quote:'array'}}]}],generation:{model:rate.model,promptVersion:'prompt.v1',inputTokens:1000,outputTokens:100,cost:{amountUsd:0.0028,reason:'estimated',rate}}};
 it('compares the same reviewed dataset, retains failures and refuses to invent a quality winner',async()=>{
   const checkpoints:any[]=[];
   const a=await measureRun(items,newRun(items,metadata),async()=>feedback,r=>checkpoints.push(structuredClone(r)));

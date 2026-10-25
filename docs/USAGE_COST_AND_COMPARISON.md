@@ -77,7 +77,11 @@ npm run comparison -- report --runs ../calibration/output/a.json,../calibration/
 
 Run files retain dataset hash, ordered item IDs, requested/resolved models, rubric and
 prompt versions, timestamps, reported tokens, cost/rate version, latency, failures and
-verified evidence coverage. They omit answers, audio, provider errors and credentials.
+verified evidence coverage. New runs also retain criterion scorecards, including
+exact evidence quotes and rationales, to reuse the same responses for human calibration.
+They omit a separate input-answer field, audio, provider errors and credentials, but
+quotes may contain the entire answer. Treat these private research artifacts like the
+dataset itself; do not publish them or commit them to Git.
 Outputs belong in ignored `calibration/output/`, not Git. Existing output paths are
 refused. An interrupted run remains partial and is rejected by the comparison command;
 rerun to a new path (paid calls can recur). Successful rows have priced or unknown costs;
@@ -91,6 +95,23 @@ accuracy. No automatic best-provider verdict is issued.** Use the human ratings 
 unsupported-claim audits in [CALIBRATION.md](CALIBRATION.md) for the quality gate.
 Model order, provider load, dataset size and warm/cold caches affect results; repeat
 counterbalanced runs before making a deployment choice.
+
+### Reuse comparison responses for calibration
+
+Export each candidate separately; this performs no provider calls:
+
+```sh
+npm run comparison -- export-calibration --items ../calibration/items.synthetic.v1.jsonl --run ../calibration/output/a.json --out ../calibration/output/a-model.jsonl
+```
+
+The export requires a reviewed, complete successful run with matching dataset hash,
+item IDs, rubric, model/prompt metadata and every expected criterion. Older run files
+without retained scorecards and partial/failed runs cannot be exported. Their cost
+and failure reports remain usable; do not discard failures to improve a quality score.
+Use the exported file as `--model` for calibration audit sheets and reports. Make a
+separate evidence audit for each candidate: fingerprints bind each review to its
+exact score, rationale, quote, model and dataset. Human scoring sheets stay blind
+and can be shared across candidates only for the identical frozen dataset.
 
 ## Verification and remaining gates
 

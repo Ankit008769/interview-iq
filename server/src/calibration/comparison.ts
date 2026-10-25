@@ -1,12 +1,12 @@
-import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { evaluateInterview } from '../services/ai.js';
-import { RUBRIC_VERSION, type CalibrationItem } from './dataset.js';
+import { criteriaFor, datasetHash, modelRatingSchema, RUBRIC_VERSION, type CalibrationItem } from './dataset.js';
 const rowSchema = z.object({
   itemId: z.string(), status: z.enum(['succeeded', 'failed']), latencyMs: z.number().finite().nonnegative(),
   model: z.string(), promptVersion: z.string().nullable(), inputTokens: z.number().int().nonnegative().nullable(),
   outputTokens: z.number().int().nonnegative().nullable(), costUsd: z.number().finite().nonnegative().nullable(),
   costReason: z.string(), rateVersion: z.string().nullable(), supportedCriteria: z.number().int().nonnegative(), totalCriteria: z.number().int().nonnegative(),
+  ratings: z.array(modelRatingSchema).optional(),
 }).strict();
 export const runSchema = z.object({
   version: z.literal(1), label: z.string().min(1).max(100), datasetHash: z.string().regex(/^[a-f0-9]{64}$/),
@@ -16,7 +16,7 @@ export const runSchema = z.object({
 export type ComparisonRun = z.infer<typeof runSchema>;
 export function newRun(items: CalibrationItem[], metadata: Pick<ComparisonRun, 'label'|'provider'|'endpoint'|'requestedModel'|'reviewed'>): ComparisonRun {
   if (!items.length) throw new Error('Comparison requires a non-empty dataset.');
-  return runSchema.parse({ version: 1, ...metadata, datasetHash: createHash('sha256').update(JSON.stringify(items)).digest('hex'),
+  return runSchema.parse({ version: 1, ...metadata, datasetHash: datasetHash(items),
     itemIds: items.map(item => item.id), rubricVersion: RUBRIC_VERSION, startedAt: new Date().toISOString(), rows: [] });
 }
 export async function measureRun(items: CalibrationItem[], run: ComparisonRun, evaluate = evaluateInterview, checkpoint?: (run: ComparisonRun) => void) {
@@ -30,7 +30,11 @@ export async function measureRun(items: CalibrationItem[], run: ComparisonRun, e
       const g = feedback.generation, criteria = feedback.answers[0].criteria;
       row = { itemId: item.id, status: 'succeeded', latencyMs: Date.now() - started, model: g.model, promptVersion: g.promptVersion,
         inputTokens: g.inputTokens, outputTokens: g.outputTokens, costUsd: g.cost?.amountUsd ?? null, costReason: g.cost?.reason ?? 'unpriced', rateVersion: g.cost?.rate?.version ?? null,
-        supportedCriteria: criteria.filter(c => c.score !== null && c.evidence).length, totalCriteria: criteria.length };
+        supportedCriteria: criteria.filter(c => c.score !== null && c.evidence).length, totalCriteria: criteria.length,
+        ratings: criteria.map(c => ({ itemId: item.id, criterionId: c.criterionId, score: c.score, quote: c.evidence?.quote ?? null,
+          rationale: c.rationale, model: g.model, promptVersion: g.promptVersion,
+          rubricVersion: feedback.rubric?.version ?? RUBRIC_VERSION, datasetHash: run.datasetHash })) };
+      rowSchema.parse(row); // Malformed scorecards remain measured failures and are checkpointed.
     } catch {
       // Failure is a measured outcome, never a free request or an excluded item.
       // Provider errors/content are deliberately excluded from persisted reports.
@@ -42,6 +46,21 @@ export async function measureRun(items: CalibrationItem[], run: ComparisonRun, e
   return run;
 }
 const percentile = (values: number[], p: number) => [...values].sort((a,b)=>a-b)[Math.max(0,Math.ceil(values.length*p)-1)] ?? null;
+export function calibrationRatings(input: unknown, items: CalibrationItem[]) {
+  const run = runSchema.parse(input);
+  if (!run.reviewed || run.datasetHash !== datasetHash(items) || run.rubricVersion !== RUBRIC_VERSION ||
+      JSON.stringify(run.itemIds) !== JSON.stringify(items.map(i => i.id)) || run.rows.length !== items.length ||
+      new Set(run.rows.map(r => r.itemId)).size !== items.length) throw new Error('Calibration export requires a complete reviewed run on the exact dataset.');
+  return run.rows.flatMap(row => {
+    const item = items.find(i => i.id === row.itemId);
+    const expected = item ? criteriaFor(item).map(c => c.id).sort() : [];
+    if (row.status !== 'succeeded' || !row.ratings?.length || !run.itemIds.includes(row.itemId) ||
+        JSON.stringify(row.ratings.map(r => r.criterionId).sort()) !== JSON.stringify(expected) ||
+        row.ratings.some(r => r.itemId !== row.itemId || r.model !== row.model || r.promptVersion !== row.promptVersion ||
+          r.datasetHash !== run.datasetHash || r.rubricVersion !== run.rubricVersion)) throw new Error('Missing or incompatible scorecards; do not silently exclude failed items.');
+    return row.ratings;
+  });
+}
 export function compareRuns(input: unknown[]) {
   if (input.length < 2) throw new Error('Provide at least two runs.');
   const runs = input.map(v => runSchema.parse(v)), first = runs[0];

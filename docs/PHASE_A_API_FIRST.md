@@ -143,6 +143,11 @@ Next sequence:
    subtotal before claiming validated unit economics.
 2. Collect independent human ratings using the A5 toolkit. Synthetic examples and
    passing software tests cannot establish evaluator quality.
+   Comparison runs now export their exact scorecards without another provider call.
+   Calibration rejects duplicate/unrelated reviews and mismatched provenance, and
+   separates pilot statistics from the 500-real-answer release gate. Provider
+   credentials and human ratings are deferred at the founder's request; no paid
+   comparison, candidate selection or calibrated-quality claim has been made.
 3. Terraform remote state and import-only adoption are complete: 29 imported, zero
    resource changes, and a fresh post-adoption plan with no changes. State is private
    and versioned. See [INFRASTRUCTURE_AS_CODE.md](INFRASTRUCTURE_AS_CODE.md).

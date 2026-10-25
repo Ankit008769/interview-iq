@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { parseItems } from '../calibration/dataset.js';
-import { newRun, measureRun, compareRuns } from '../calibration/comparison.js';
+import { newRun, measureRun, compareRuns, calibrationRatings } from '../calibration/comparison.js';
 import { aiDisclosure } from '../services/providerConsent.js';
 import { providerConfig } from '../services/providerConfig.js';
 import { readRateCard, reconcileUsage } from '../services/usageCost.js';
@@ -11,6 +11,12 @@ for (let i=0;i<rest.length;i++) { if (!rest[i].startsWith('--')) throw new Error
 const need=(key:string)=>{const value=args.get(key);if(!value||value==='true')throw new Error(`Missing --${key}`);return value;};
 async function main() {
   const out=need('out'); if(existsSync(out)||existsSync(out+'.tmp'))throw new Error('Output already exists; choose a new path.');
+  if(command==='export-calibration') {
+    const items=parseItems(readFileSync(need('items'),'utf8'));
+    const ratings=calibrationRatings(JSON.parse(readFileSync(need('run'),'utf8')),items);
+    writeFileSync(out,ratings.map(r=>JSON.stringify(r)).join('\n')+'\n',{flag:'wx'});
+    console.log('Calibration scorecards exported without additional provider calls.');return;
+  }
   if(command==='reconcile') {
     if(args.get('scope-matched')!=='true')throw new Error('Explicit matching billing scope is required.');
     const data=JSON.parse(readFileSync(need('usage'),'utf8'));

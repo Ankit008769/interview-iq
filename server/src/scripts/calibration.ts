@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { auditTemplate, parseAudit, parseHumanRatings, parseItems, parseModelRatings, ratingTemplate } from '../calibration/dataset.js';
 import { runJudge } from '../calibration/judge.js';
@@ -19,9 +19,11 @@ for (let i = 0; i < rest.length; i++) {
 }
 const need = (name: string) => { const v = args.get(name); if (!v) throw new Error(`Missing --${name}.`); return v; };
 const read = (path: string) => readFileSync(path, 'utf8');
-const write = (path: string, text: string) => { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, text, 'utf8'); console.log(`Wrote ${path}`); };
+const write = (path: string, text: string) => { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, text, {encoding: 'utf8', flag: 'wx'}); console.log(`Wrote ${path}`); };
 
 async function main() {
+  const output = need('out');
+  if (existsSync(output) || (command === 'report' && existsSync(output.replace(/\.md$/, '') + '.json'))) throw new Error('Output already exists; choose a new path.');
   const items = parseItems(read(need('items')));
   if (command === 'template') {
     write(need('out'), ratingTemplate(items, need('rater')));
@@ -29,20 +31,25 @@ async function main() {
     if (process.env.NODE_ENV === 'production') throw new Error('Run calibration outside the production environment.');
     const disclosure = aiDisclosure();
     if (!disclosure) throw new Error('No AI provider is configured (AI_PROVIDER is practice).');
-    if (args.get('yes') !== 'true') {
-      console.log(`This would send ${items.length} calibration answers to ${disclosure.provider} (${disclosure.endpoint}), judge model ${disclosure.judgeModel}. Paid usage applies. Re-run with --yes to proceed.`);
+    const max = Number(args.get('max-items') || 25);
+    if (!Number.isSafeInteger(max) || max < 1 || max > 1000 || !items.length || items.length > max) throw new Error('Dataset exceeds --max-items (default 25, maximum 1000).');
+    if (args.get('yes') !== 'true' || args.get('reviewed') !== 'true') {
+      console.log(`This would send ${items.length} calibration answers to ${disclosure.provider} (${disclosure.endpoint}), judge model ${disclosure.judgeModel}. Paid usage applies. Review the dataset and re-run with --reviewed --yes to proceed.`);
       return;
     }
     const ratings = await runJudge(items, undefined, done => process.stdout.write(`\rScored ${done}/${items.length}`));
     process.stdout.write('\n');
     write(need('out'), ratings.map(r => JSON.stringify(r)).join('\n') + '\n');
   } else if (command === 'audit-template') {
-    write(need('out'), auditTemplate(items, parseModelRatings(read(need('model'))), need('auditor')));
+    const model = parseModelRatings(read(need('model')));
+    buildReport(items, [], model); // Validate provenance and references before exposing a review sheet.
+    write(need('out'), auditTemplate(items, model, need('auditor')));
   } else if (command === 'report') {
     const problems: string[] = [];
     const human = need('ratings').split(',').flatMap(path => { const parsed = parseHumanRatings(read(path.trim()), items); problems.push(...parsed.problems); return parsed.rows; });
     const model = args.has('model') ? parseModelRatings(read(need('model'))) : [];
     const audit = args.has('audit') ? (() => { const parsed = parseAudit(read(need('audit'))); problems.push(...parsed.problems); return parsed.rows; })() : [];
+    if (problems.length) throw new Error(`Input validation failed: ${problems.join('; ')}`);
     const report = buildReport(items, human, model, audit);
     const out = need('out');
     write(out, renderMarkdown(report, problems));

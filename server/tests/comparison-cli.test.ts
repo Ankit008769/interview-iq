@@ -30,5 +30,15 @@ it('dry-runs without calls, executes two real local gateway evaluations and writ
   const result=JSON.parse(readFileSync(report,'utf8'));expect(calls).toBe(2);
   expect(result.runs).toHaveLength(2);expect(result.runs.every((r:any)=>r.failures===0&&r.unknownCostAttempts===1&&r.supportedCriteria>0)).toBe(true);
   expect(JSON.stringify(result)).not.toContain('Arrays support');
+  const exported=join(directory,'calibration.jsonl');
+  await cli(['export-calibration','--items',items,'--run',outA,'--out',exported]);
+  const ratings=readFileSync(exported,'utf8').trim().split('\n').map(line=>JSON.parse(line));
+  expect(ratings).toHaveLength(5);expect(ratings.every(r=>r.datasetHash===result.datasetHash&&r.model==='fixture-a')).toBe(true);
+  expect(calls).toBe(2); // Calibration reuses the exact evaluated responses, no second paid run.
+  const broken=JSON.parse(readFileSync(outA,'utf8'));broken.rows[0].ratings.pop();
+  const brokenPath=join(directory,'broken.json');writeFileSync(brokenPath,JSON.stringify(broken));
+  await expect(cli(['export-calibration','--items',items,'--run',brokenPath,'--out',join(directory,'bad.jsonl')])).rejects.toThrow();
+  const changedItems=join(directory,'changed-items.jsonl');writeFileSync(changedItems,readFileSync(items,'utf8').replace('direct indexed','fast indexed'));
+  await expect(cli(['export-calibration','--items',changedItems,'--run',outA,'--out',join(directory,'changed.jsonl')])).rejects.toThrow();
   await expect(cli([...common,'--reviewed','--yes'])).rejects.toThrow();expect(calls).toBe(2);
 },60000);
