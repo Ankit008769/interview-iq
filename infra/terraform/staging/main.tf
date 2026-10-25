@@ -144,11 +144,10 @@ resource "google_compute_disk_resource_policy_attachment" "hourly_snapshots" {
 }
 
 resource "google_compute_instance" "mongo" {
-  name                      = var.mongo_vm_name
-  zone                      = var.zone
-  machine_type              = var.mongo_machine_type
-  tags                      = [var.mongo_network_tag]
-  allow_stopping_for_update = true
+  name         = var.mongo_vm_name
+  zone         = var.zone
+  machine_type = var.mongo_machine_type
+  tags         = [var.mongo_network_tag]
 
   boot_disk {
     initialize_params {
@@ -173,6 +172,7 @@ resource "google_compute_instance" "mongo" {
 
   metadata = {
     startup-script = file("${path.module}/../../../deploy/mongo-startup.sh")
+    enable-oslogin = "TRUE"
   }
 
   service_account {
@@ -212,18 +212,26 @@ resource "google_storage_bucket_iam_member" "app_ledger_creator" {
 # ---------------------------------------------------------------- Cloud Run
 
 resource "google_cloud_run_v2_service" "app" {
-  name                = var.service_name
-  location            = var.region
-  ingress             = "INGRESS_TRAFFIC_ALL"
-  deletion_protection = true
+  name                 = var.service_name
+  location             = var.region
+  ingress              = "INGRESS_TRAFFIC_ALL"
+  deletion_protection  = true
+  invoker_iam_disabled = true
+
+  # Service-level minimum keeps the worker alive across revision rollouts.
+  # Provider 6.50 cannot represent the service-level maximum (currently 1).
+  scaling {
+    min_instance_count    = 1
+    manual_instance_count = 0
+  }
 
   template {
     service_account = google_service_account.app.email
 
-    # One always-on instance so the embedded worker keeps running between requests.
+    # Preserve the existing revision limits; service-level scaling takes precedence.
     scaling {
-      min_instance_count = 1
-      max_instance_count = 1
+      min_instance_count = 0
+      max_instance_count = 10
     }
 
     vpc_access {
@@ -244,7 +252,8 @@ resource "google_cloud_run_v2_service" "app" {
           cpu    = var.run_cpu
           memory = var.run_memory
         }
-        cpu_idle = false # instance-based billing: CPU stays allocated for the worker
+        cpu_idle          = false # instance-based billing: CPU stays allocated for the worker
+        startup_cpu_boost = true
       }
       env {
         name  = "CLIENT_ORIGIN"
@@ -282,9 +291,11 @@ resource "google_cloud_run_v2_service" "app" {
     }
   }
 
-  # Releases (gcloud run deploy or CI) own the image and revision metadata.
+  # Releases own image, build metadata, and all environment variables (including
+  # pinned secret versions, provider configuration and deployment commit).
+  # The env blocks above are creation defaults, not an override of a live release.
   lifecycle {
-    ignore_changes = [client, client_version, template[0].containers[0].image, template[0].revision, template[0].labels, template[0].annotations]
+    ignore_changes = [client, client_version, build_config, template[0].containers[0].image, template[0].containers[0].env, template[0].revision, template[0].labels, template[0].annotations]
   }
 
   depends_on = [google_secret_manager_secret_iam_member.app]

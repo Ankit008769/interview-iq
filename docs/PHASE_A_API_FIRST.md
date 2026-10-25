@@ -125,14 +125,16 @@ Monitoring and provider consent: [MONITORING_AND_CONSENT.md](MONITORING_AND_CONS
 The full Phase A quality and evaluator-calibration exit gate remains open.
 
 
-## Continuation checkpoint — 25 October 2026
+## Continuation checkpoint - 25 October 2026
 
 Reviewed the six implementation commits through `1267b79` and the uncommitted B1
 voice slice. Existing question-bank, challenge, rewrite, timing, calibration and
 Terraform work is preserved. B1 now handles cancellation and navigation cleanup,
 ignores stale results, prevents submission during voice processing, preserves long
 transcripts for correction, and rechecks consent immediately before audio dispatch.
-This checkpoint is locally tested; it does not claim these changes are deployed.
+Commit `c9bcf44` is deployed as `interview-iq-cost-voice-c9bcf44`. Live verification
+passed 18 API groups and 6 Chromium groups; application email remains disabled.
+Paid AI and transcription remain unconfigured, so their live quality is not validated.
 
 Next sequence:
 
@@ -141,8 +143,9 @@ Next sequence:
    subtotal before claiming validated unit economics.
 2. Collect independent human ratings using the A5 toolkit. Synthetic examples and
    passing software tests cannot establish evaluator quality.
-3. Inspect the Terraform adoption plan against the live environment, retaining the
-   import-only guard; do not apply inferred infrastructure changes.
+3. Terraform read-only adoption audit passed: 29 imports and zero resource changes.
+   Remote state setup and import-only adoption remain pending; use a fresh guarded
+   plan before applying. See [INFRASTRUCTURE_AS_CODE.md](INFRASTRUCTURE_AS_CODE.md).
 4. Measure B1 transcription quality and latency on consented Indian English and
    Hinglish examples before progressing to real-time B2 voice. Resume/JD grounding
    remains a later B milestone with explicit ownership and deletion controls.

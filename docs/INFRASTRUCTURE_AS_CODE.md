@@ -2,9 +2,21 @@
 
 Added 25 October 2026 for Phase A1. `infra/terraform/staging/` describes the staging
 environment that was first built by hand (see [GOOGLE_CLOUD_STAGING.md](GOOGLE_CLOUD_STAGING.md)).
-**It has not been planned or applied against the live project yet.** It was written
-from the documented configuration and checked offline (`terraform fmt`, `init
--backend=false`, `validate`). Adoption needs the project owner's credentials.
+**Read-only adoption audit completed 25 October 2026:** Terraform 1.9.8 with
+Google provider 6.50.0 produced **29 imports, zero creates, updates or destroys**.
+The import-only guard passed. No apply was run and remote state adoption is still
+pending. The audit used an isolated local backend outside Git and a short-lived
+CLI access token; no secret payloads were read.
+
+The scaffold was reconciled with live private Google access, OS Login, invoker
+check bypass, service/revision scaling and startup CPU boost. There is no
+`allUsers` invoker IAM binding to import. Release tooling owns the environment
+variables (including pinned secret versions and deployment commit), image and
+build metadata. Terraform ignores those fields after import; review deployment
+configuration separately. Provider 6.50.0 cannot represent the service-level
+maximum of 1: verify it before and after any future Cloud Run infrastructure
+update, or upgrade the provider to manage it explicitly. Do not infer the effective
+limit from the revision maximum of 10.
 
 ## What it manages
 
@@ -15,7 +27,7 @@ from the documented configuration and checked offline (`terraform fmt`, `init
 | Database | VM `interviewiq-mongo` (e2-small, asia-south1-b, startup script `deploy/mongo-startup.sh`), data disk `interviewiq-mongo-data` (device `mongo-data`), snapshot policy `interviewiq-hourly-7d` and its attachment |
 | Identity | Service accounts `interviewiq-app`, `interviewiq-build` and the Mongo VM account; secret containers `interviewiq-mongodb-uri`, `interviewiq-jwt-secret`, `interviewiq-mongo-password` (never their values); per-secret accessor grants; `roles/run.builder` for the build account |
 | Deletion ledger | `interviewiq-deletion-ledger-341474411884` (uniform access, public access prevented, 30-day unlocked retention) and the app's create-only grant |
-| App | Cloud Run `interview-iq`: one always-on instance, CPU always allocated, Direct VPC egress, `CLIENT_ORIGIN`, `DELETION_LEDGER_BUCKET`, secret-backed `MONGODB_URI` and `JWT_SECRET`; public invoker while staging stays public |
+| App | Cloud Run `interview-iq`: one always-on instance, CPU always allocated, Direct VPC egress; release-owned environment and pinned secret references; IAM invoker check disabled while staging stays public |
 
 Not managed here (yet): monitoring and alerts (still applied by
 `deploy/configure-monitoring.mjs`), IAP and its OAuth configuration, the Artifact
@@ -33,10 +45,11 @@ setup (the startup script), and secret values.
   removed.
 - **Fields that would force replacement are ignored after import:** the VM boot image
   and size, secret replication, disk snapshot/image sources.
-- **Releases stay outside Terraform.** The Cloud Run image, revision and deploy
+- **Releases stay outside Terraform.** The Cloud Run environment, image, revision and build/deploy
   metadata are ignored, so `gcloud run deploy` and CI keep working.
 - **`infra/terraform/plan-guard.mjs`** fails on any delete or replacement and, with
-  `--adopt`, on any create or update too.
+  `--adopt`, on any create or update too. Malformed, errored, incomplete and
+  deferred plans or unknown actions fail closed. Use saved-plan JSON, not state JSON.
 - State contains resource metadata but no secret values. Keep the state bucket private
   and versioned; plans and state are gitignored.
 
@@ -56,7 +69,8 @@ Run from the repository root with Terraform ≥ 1.7 (CI uses 1.9.8).
    terraform -chdir=infra/terraform/staging plan -out=tfplan
    terraform -chdir=infra/terraform/staging show -json tfplan | node infra/terraform/plan-guard.mjs --adopt
    ```
-4. **Reconcile until the guard passes.** Values marked `CONFIRM` in
+4. **Run a fresh plan and reconcile until the guard passes.** The audit above is a
+   point-in-time check, not permission to apply an old plan. Values marked `CONFIRM` in
    `variables.tf` were never recorded: subnet name and private Google access, Mongo
    network tag, service-account ID, disk type, Cloud Run CPU, memory and VPC egress
    mode, and any extra environment variables. If an import fails, fix the name. If a

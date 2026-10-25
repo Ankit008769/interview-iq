@@ -39,9 +39,9 @@ variable "subnet_cidr" {
 }
 
 variable "subnet_private_google_access" {
-  description = "CONFIRM."
+  description = "Verified against staging during the read-only adoption audit."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "mongo_vm_name" {
@@ -155,7 +155,7 @@ variable "extra_env" {
 }
 
 variable "public_invoker" {
-  description = "Staging currently allows public HTTP; application data still requires sign-in."
+  description = "No allUsers IAM binding exists. Public HTTP uses invoker_iam_disabled; application data still requires sign-in."
   type        = bool
-  default     = true
+  default     = false
 }

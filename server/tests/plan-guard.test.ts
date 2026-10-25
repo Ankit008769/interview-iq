@@ -5,7 +5,10 @@ import { fileURLToPath } from 'node:url';
 const guard = fileURLToPath(new URL('../../infra/terraform/plan-guard.mjs', import.meta.url));
 const change = (address: string, actions: string[], importing = false) => ({ address, change: { actions, ...(importing ? { importing: { id: 'x' } } : {}) } });
 const run = (changes: object[], adopt = false) => {
-  const result = spawnSync(process.execPath, [guard, ...(adopt ? ['--adopt'] : [])], { input: JSON.stringify({ resource_changes: changes }), encoding: 'utf8' });
+  return runPlan({ format_version: '1.2', planned_values: {}, configuration: {}, resource_changes: changes }, adopt);
+};
+const runPlan = (plan: unknown, adopt = false) => {
+  const result = spawnSync(process.execPath, [guard, ...(adopt ? ['--adopt'] : [])], { input: JSON.stringify(plan), encoding: 'utf8' });
   return { code: result.status, out: result.stdout + result.stderr };
 };
 
@@ -13,6 +16,25 @@ it('allows an import-only adoption plan and reports what it saw', () => {
   const { code, out } = run([change('google_compute_disk.mongo_data', ['no-op'], true), change('google_compute_network.staging', ['no-op'], true)], true);
   expect(code).toBe(0);
   expect(out).toContain('"import":2');
+});
+
+it('rejects empty, state-only, errored, deferred and incomplete plans', () => {
+  const valid = { format_version: '1.2', planned_values: {}, configuration: {}, resource_changes: [] };
+  for (const plan of [null, {}, { format_version: '1.0', values: {} },
+    { ...valid, format_version: '2.0' }, { ...valid, errored: true },
+    { ...valid, complete: false }, { ...valid, deferred_changes: [{}] },
+    { ...valid, resource_changes: {} }]) {
+    expect(runPlan(plan, true).code).toBe(1);
+  }
+  expect(runPlan(valid, true).code).toBe(0);
+});
+
+it('rejects missing and unrecognized actions instead of treating them as no-ops', () => {
+  for (const actions of [[], ['forget'], ['update', 'read']]) {
+    expect(run([change('google_compute_disk.mongo_data', actions)], true).code).toBe(1);
+  }
+  expect(run([{ address: 'missing.actions' }], true).code).toBe(1);
+  expect(run([change('data.google_project.current', ['read'])], true).code).toBe(0);
 });
 
 it('blocks creates and updates only in adoption mode', () => {
