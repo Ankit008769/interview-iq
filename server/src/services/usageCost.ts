@@ -24,6 +24,7 @@ export function readRateCard(): Rate[] {
 export function estimateCost(rates: Rate[], usage: { provider: string; endpoint?: string; model: string; slot: string;
   inputTokens: number | null; outputTokens: number | null; cachedInputTokens?: number; cancelled?: boolean; at: Date }): CostEstimate {
   if (usage.cancelled) return { amountUsd: 0, reason: 'cancelled_before_dispatch' };
+  if (usage.provider === 'local') return { amountUsd: 0, reason: 'local_model' };
   if (usage.slot === 'transcriber') return { amountUsd: null, reason: 'unsupported_audio_pricing' };
   const rate = rates.find(r => r.provider === usage.provider && r.endpoint === usage.endpoint && r.model === usage.model && r.slot === usage.slot
     && Date.parse(r.validFrom) <= usage.at.getTime() && usage.at.getTime() < Date.parse(r.validUntil));

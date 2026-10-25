@@ -73,7 +73,7 @@ export function InterviewRoom() {
         {error && <div className="alert error" role="alert">{error}</div>}
       </div>}
     </section><aside className="interview-aside"><div className="card session-card"><h3>Session overview</h3><div className="session-stat"><span>Role</span><b>{interview.role}</b></div><div className="session-stat"><span>Type</span><b>{interview.type}</b></div><div className="session-stat"><span>Difficulty</span><b>{interview.difficulty}</b></div>{limit&&<div className="session-stat"><span>Timing</span><b>{clock(limit)} per question</b></div>}<div className="session-stat"><span>Progress</span><b>{interview.turns.length} / {interview.totalQuestions} answered</b></div><div className="tiny-steps">{Array.from({length:interview.totalQuestions},(_,i)=><span key={i} className={i<interview.turns.length?'done':i===interview.turns.length?'current':''}>{i<interview.turns.length?<CircleCheck size={14}/>:i+1}</span>)}</div></div>
-      <div className="hint-box"><Sparkles size={18}/><span>{mode==='ai'?'Your follow-up questions adapt to what you say.':'Practice mode uses curated questions. Add an AI API key for adaptive interviews and scores.'}</span></div>
+      <div className="hint-box"><Sparkles size={18}/><span>{mode==='ai'?'Your follow-up questions adapt to what you say.':'Practice mode uses curated questions. Choose AI in setup for freshly generated, adaptive questions and scores.'}</span></div>
       {interview.turns.length>0&&<div className="card prior-card"><h3>Answered questions</h3>{interview.turns.map((t,i)=><details key={i}><summary><CircleCheck size={16}/> Question {i+1} <ArrowRight size={14}/></summary><p>{t.question}</p><blockquote>{t.answer}</blockquote></details>)}</div>}
     </aside></div>
   </div>;

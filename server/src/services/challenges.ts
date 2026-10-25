@@ -5,10 +5,10 @@ import { reviewChallenge } from './ai.js';
 import { operationalEvent } from './monitoring.js';
 import { ConsentRequiredError } from './providerConsent.js';
 import { consumeAIQuota, QuotaError } from './quotas.js';
+import { workLeaseMs } from './providerConfig.js';
 
 export const MAX_CHALLENGES_PER_INTERVIEW = 3;
 export const MAX_CHALLENGE_ATTEMPTS = 3;
-const LEASE_MS = 120_000;
 const failureMessage = 'The re-review could not finish. Your challenge is saved; you can try again.';
 
 // Same rule as summarizeEvidence (mean of rated criteria × 20, only if at least half are rated), computed
@@ -31,7 +31,7 @@ export async function processNextChallengeJob(): Promise<boolean> {
   const token = randomUUID();
   const doc = await Interview.findOneAndUpdate({ challenges: { $elemMatch: { attempts: { $lt: MAX_CHALLENGE_ATTEMPTS },
     $or: [{ state: 'queued', nextAttemptAt: { $lte: now } }, { state: 'processing', leaseUntil: { $lte: now } }] } } },
-  { $set: { 'challenges.$.state': 'processing', 'challenges.$.leaseToken': token, 'challenges.$.leaseUntil': new Date(now.getTime() + LEASE_MS) },
+  { $set: { 'challenges.$.state': 'processing', 'challenges.$.leaseToken': token, 'challenges.$.leaseUntil': new Date(now.getTime() + workLeaseMs()) },
     $inc: { 'challenges.$.attempts': 1 } }, { new: true, sort: { 'challenges.nextAttemptAt': 1 } });
   const challenge = doc?.challenges.find(c => c.leaseToken === token);
   if (!doc || !challenge) return Boolean(doc);

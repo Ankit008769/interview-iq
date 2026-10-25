@@ -18,9 +18,9 @@ export function Results() {
   const requestChallenge=async(questionIndex:number,criterionId:string,reason:string,submissionId:string)=>{
     const d=await api<{interview:Interview}>(`/interviews/${id}/challenges`,{method:'POST',body:JSON.stringify({questionIndex,criterionId,reason,submissionId})});setInterview(d.interview);};
   const requestRewrite=async(questionIndex:number)=>{
-    const d=await api<{interview:Interview}>(`/interviews/${id}/rewrites`,{method:'POST',body:JSON.stringify({questionIndex})});setInterview(d.interview);};
+    const d=await api<{interview:Interview}>(`/interviews/${id}/rewrites`,{method:'POST',body:JSON.stringify({questionIndex}),timeoutMs:300_000});setInterview(d.interview);};
   const requestStar=async(questionIndex:number)=>{
-    const d=await api<{interview:Interview}>(`/interviews/${id}/star`,{method:'POST',body:JSON.stringify({questionIndex})});setInterview(d.interview);};
+    const d=await api<{interview:Interview}>(`/interviews/${id}/star`,{method:'POST',body:JSON.stringify({questionIndex}),timeoutMs:300_000});setInterview(d.interview);};
   const turnOffDelivery=async()=>{
     const d=await api<{user:User}>('/account/preferences',{method:'PATCH',body:JSON.stringify({deliveryMetrics:false})});setUser(d.user);setDeliveryOff(true);};
   if(!interview)return error?<div className="alert error">{error}</div>:<LoadingScreen/>;

@@ -4,6 +4,13 @@ Decision date: 24 October 2026. This implementation follows the product sequence
 in the founder's 51-page strategy report, with the founder-authorized API-first
 change. It does not claim the full Phase A exit gate is complete.
 
+> **Update, 25 October 2026:** scoring is AI-only (no human raters), and questions are
+> generated fresh by local, pretrained open models (`AI_PROVIDER=local`, Ollama with
+> Qwen3.5 4B; Gemma 4 E2B as a second judge for automated checks). Hosted APIs remain
+> available through the same provider boundary. Training is deferred until there is data
+> and a GPU. See [LOCAL_MODELS.md](LOCAL_MODELS.md); this supersedes the A5 human-rater
+> plan and the API-first default below.
+
 ## Decisions
 
 - Preserve the MERN app, atomic answer/job writes, lease fencing, owner checks,

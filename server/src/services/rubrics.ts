@@ -4,8 +4,8 @@ export const RUBRIC_VERSION = '2026-10-24.v1';
 export const JUDGE_PROMPT_VERSION = 'evidence-judge.v1';
 export const CHALLENGE_PROMPT_VERSION = 'challenge-review.v1';
 export const REWRITE_PROMPT_VERSION = 'answer-rewrite.v1';
-export const QUESTION_PROMPT_VERSION = 'interviewer.v2';
-export const GROUNDED_QUESTION_PROMPT_VERSION = 'interviewer-grounded.v1';
+export const QUESTION_PROMPT_VERSION = 'interviewer.v3';
+export const GROUNDED_QUESTION_PROMPT_VERSION = 'interviewer-grounded.v2';
 export const STAR_PROMPT_VERSION = 'star-coverage.v1';
 export const anchors = [
   'Explicit evidence is incorrect, off-topic or contradicts this criterion.',

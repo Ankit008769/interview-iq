@@ -26,11 +26,11 @@ export interface ModelProvider {
 export function configuredProvider(): ModelProvider | null {
   const config = providerConfig();
   if (config.provider === 'practice') return null;
-  const client = new OpenAI({ apiKey: config.key || 'local-development', baseURL: config.baseURL, timeout: 25_000, maxRetries: 0 });
+  const client = new OpenAI({ apiKey: config.key || 'local-development', baseURL: config.baseURL, timeout: config.timeoutMs, maxRetries: 0 });
   return {
     async structured<T>(request: StructuredRequest<T>) {
       if (process.env.NODE_ENV === 'production' && !request.usageContext) throw new ConsentRequiredError();
-      const model = (request.slot === 'judge' ? process.env.JUDGE_MODEL : process.env.INTERVIEWER_MODEL) || process.env.AI_MODEL || 'gpt-4o-mini';
+      const model = request.slot === 'judge' ? config.judgeModel : config.interviewerModel;
       const serialized = JSON.stringify(request.input);
       const inputHash = createHash('sha256').update(JSON.stringify({ system: request.system, input: request.input })).digest('hex');
       const started = Date.now();
@@ -63,7 +63,10 @@ export function configuredProvider(): ModelProvider | null {
         } else {
           const response = await client.chat.completions.create({ model,
             messages: [{ role: 'system', content: request.system }, { role: 'user', content: serialized }],
-            response_format: zodResponseFormat(request.schema, request.name), max_tokens: request.maxOutputTokens });
+            response_format: zodResponseFormat(request.schema, request.name), max_tokens: request.maxOutputTokens,
+            // Local reasoning models answer directly: thinking would multiply CPU time without changing the schema output.
+            // A deterministic local judge gives the same scorecard for the same answer.
+            ...(config.provider === 'local' ? { reasoning_effort: 'none' as never, ...(request.slot === 'judge' ? { temperature: 0 } : {}) } : {}) });
           raw = response.choices[0]?.message.content;
           complete = response.choices[0]?.finish_reason === 'stop' && !response.choices[0]?.message.refusal;
           actualModel = response.model;

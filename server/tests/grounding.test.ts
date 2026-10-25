@@ -118,7 +118,7 @@ it('tailors questions to the chosen documents and shows the verified line each c
   expect(JSON.stringify(calls[0].input)).not.toContain('My resume');
   expect(calls[0].system).toMatch(/untrusted data/);
   expect(calls[0].system).toMatch(/caste/);
-  expect(await AIUsage.countDocuments({ interviewId: created._id, promptVersion: 'interviewer-grounded.v1', status: 'succeeded' })).toBe(1);
+  expect(await AIUsage.countDocuments({ interviewId: created._id, promptVersion: 'interviewer-grounded.v2', status: 'succeeded' })).toBe(1);
 
   let interview = await answer(created._id, 0);
   expect(interview.turns[0].grounding.source.quote).toBe(RESUME_LINE);

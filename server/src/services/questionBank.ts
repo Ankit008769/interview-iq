@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto';
 import mongoose from 'mongoose';
 import { Interview, type AnswerTurn, type InterviewLevel, type InterviewType } from '../models/Interview.js';
+import { REMOVED_QUESTION } from './documents.js';
 
 // Curated practice questions. Authored for Phase A4; pending human content review (see docs/QUESTION_BANK.md).
 export const QUESTION_BANK_VERSION = '2026-10-24.v2';
@@ -196,6 +197,16 @@ export function pickPracticeQuestion(input: { type: InterviewType; topic: string
 }
 
 // Most recent first: each interview's current question, then its answered turns newest to oldest.
+// The candidate's most recent questions from earlier interviews, newest first, so generated questions stay fresh.
+// Questions removed with a deleted document are skipped.
+export async function recentQuestionTexts(userId: string, excludeInterviewId?: string, limit = 20): Promise<string[]> {
+  const docs = await Interview.find({ userId: new mongoose.Types.ObjectId(userId), ...(excludeInterviewId ? { _id: { $ne: excludeInterviewId } } : {}) })
+    .sort({ createdAt: -1, _id: -1 }).limit(10).select('turns.question').lean();
+  const seen = new Set<string>();
+  return docs.flatMap(d => [...d.turns].reverse().map(t => t.question))
+    .filter(q => q !== REMOVED_QUESTION && !seen.has(q) && Boolean(seen.add(q))).slice(0, limit);
+}
+
 export async function recentQuestionIds(userId: string, interviews = 30): Promise<string[]> {
   const docs = await Interview.find({ userId: new mongoose.Types.ObjectId(userId) }).sort({ createdAt: -1, _id: -1 })
     .limit(interviews).select('currentQuestionId turns.questionId').lean();

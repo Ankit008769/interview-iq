@@ -9,6 +9,15 @@ export const evidenceResponseSchema = z.object({ answers: z.array(z.object({
   criteria: z.array(z.object({ criterionId: z.string(), ...ratingFields })).min(4).max(5),
 })).min(1).max(5) });
 export const ratingResponseSchema = z.object(ratingFields);
+// The schema sent with a scoring request names this rubric's criteria and requires each answer and criterion once,
+// so constrained decoding (local models) cannot produce unknown IDs or the wrong count.
+export function evidenceSchemaFor(type: InterviewType, turns: number) {
+  const ids = rubricFor(type).criteria.map(c => c.id) as [string, ...string[]];
+  return z.object({ answers: z.array(z.object({
+    questionIndex: z.number().int().min(0).max(turns - 1),
+    criteria: z.array(z.object({ criterionId: z.enum(ids), ...ratingFields })).length(ids.length),
+  })).length(turns) });
+}
 export interface CriterionRating {
   criterionId: string; label: string; score: number | null;
   status: 'rated' | 'insufficient_evidence'; rationale: string; improvement: string | null;

@@ -20,6 +20,7 @@ const ANSWER = 'In my final-year project our demo server crashed a day before th
 let transcript = SPOKEN;
 let star: 'good' | 'invented' | 'fail' = 'good';
 const starCalls: { system: string; input: any }[] = [];
+let asked = 0;
 
 const gateway = createServer(async (req, res) => {
   const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(chunk as Buffer);
@@ -39,7 +40,7 @@ const gateway = createServer(async (req, res) => {
   } else if (input.turns) {
     value = { answers: input.turns.map((turn: any) => ({ questionIndex: turn.questionIndex,
       criteria: input.rubric.criteria.map((c: any) => ({ criterionId: c.id, score: 3, quote: turn.answer, rationale: 'Some evidence.', improvement: 'Be specific.' })) })) };
-  } else value = { question: `Tell me about a time you recovered from a setback, question ${input.questionNumber}.`, topic: 'Behavioral' };
+  } else value = { question: `Tell me about a time you recovered from a setback, question ${input.questionNumber} (${++asked}).`, topic: 'Behavioral' };
   res.end(JSON.stringify({ id: 'chatcmpl_test', object: 'chat.completion', created: 1, model: parsed.model,
     choices: [{ index: 0, message: { role: 'assistant', content: JSON.stringify(value), refusal: null }, finish_reason: 'stop' }],
     usage: { prompt_tokens: 40, completion_tokens: 30, total_tokens: 70 } }));

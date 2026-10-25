@@ -47,7 +47,7 @@ it('persists provider provenance and verified scorecards through the real HTTP g
   }
   const saved = (await owner.get(`/api/interviews/${id}`).expect(200)).body.interview;
   expect(saved.status).toBe('completed');
-  expect(saved.turns[0].questionGeneration.promptVersion).toBe('interviewer.v2');
+  expect(saved.turns[0].questionGeneration.promptVersion).toBe('interviewer.v3');
   expect(saved.feedback.generation).toMatchObject({ model: 'iq-judge-resolved', provider: 'compatible', inputTokens: 50, outputTokens: 60 });
   expect(saved.feedback.rubric.version).toBe('2026-10-24.v1');
   expect(saved.feedback.answers[0].criteria[0]).toMatchObject({ score: null, evidence: null, status: 'insufficient_evidence' });

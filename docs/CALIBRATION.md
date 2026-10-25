@@ -4,6 +4,14 @@ Added 25 October 2026. AI scorecards stay labelled "uncalibrated" until this pro
 shows the AI judge agrees with expert humans. This document covers the tooling; the
 ratings themselves need a human panel.
 
+> **Current direction (25 October 2026): no human raters.** Scoring is done by AI models
+> only, and the human panel below is not being recruited. Instead, `npm run calibration
+> auto-report` checks a judge against answers of known intended quality and against a
+> second, independent AI judge (see [LOCAL_MODELS.md](LOCAL_MODELS.md)). Those automated
+> checks show ordering and consistency, not agreement with expert interviewers, so the
+> product keeps describing scores as AI coaching estimates. The human process stays here
+> in case it is wanted later.
+
 ## Gates
 
 | Gate | Target (Phase A) | Statistic |

@@ -8,9 +8,9 @@ import { processAccountDeletions } from './account.js';
 import { processNextChallengeJob } from './challenges.js';
 import { User } from '../models/User.js';
 import { groundingDocuments } from './documents.js';
+import { workLeaseMs } from './providerConfig.js';
 
 export const MAX_JOB_ATTEMPTS = 3;
-export const JOB_LEASE_MS = 120_000;
 const failureMessage = 'Your answer is saved. Processing could not finish. Please retry.';
 
 // The answer and job live in one MongoDB document: no gap between saving and enqueueing.
@@ -28,7 +28,7 @@ export async function processNextInterviewJob(): Promise<boolean> {
       { processingState: 'queued', jobNextAttemptAt: { $lte: now } },
       { processingState: 'processing', jobLeaseUntil: { $lte: now } },
     ] },
-  { $set: { processingState: 'processing', jobLeaseToken: token, jobLeaseUntil: new Date(now.getTime() + JOB_LEASE_MS) },
+  { $set: { processingState: 'processing', jobLeaseToken: token, jobLeaseUntil: new Date(now.getTime() + workLeaseMs()) },
     $inc: { jobAttempts: 1 } }, { new: true, sort: { jobNextAttemptAt: 1 } });
   if (!doc) return false;
   const fence = { _id: doc._id, processingState: 'processing', jobLeaseToken: token };

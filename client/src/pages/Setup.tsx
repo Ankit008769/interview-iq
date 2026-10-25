@@ -22,7 +22,7 @@ export function Setup() {
   useEffect(()=>{if(!useAI||documents)return;api<{documents:CandidateDocument[]}>('/documents').then(d=>setDocuments(d.documents.filter(x=>!x.deleting))).catch(()=>setDocuments([]));},[useAI,documents]);
   const documentIds=useAI?[resumeId,jdId].filter(Boolean):[];
   async function create(e:FormEvent) {e.preventDefault();setLoading(true);setError('');
-    try {const d=await api<{interview:Interview;mode:Mode}>('/interviews',{method:'POST',body:JSON.stringify({mode:useAI?'ai':'practice',role,type,difficulty,topic: type==='Technical'?topic:type==='Behavioral'?'Behavioral':'General',totalQuestions,...(timeLimit?{timeLimitSeconds:timeLimit}:{}),...(documentIds.length?{documentIds}:{})})});navigate(`/interview/${d.interview._id}`);}
+    try {const d=await api<{interview:Interview;mode:Mode}>('/interviews',{method:'POST',body:JSON.stringify({mode:useAI?'ai':'practice',role,type,difficulty,topic: type==='Technical'?topic:type==='Behavioral'?'Behavioral':'General',totalQuestions,...(timeLimit?{timeLimitSeconds:timeLimit}:{}),...(documentIds.length?{documentIds}:{})}),timeoutMs:180_000});navigate(`/interview/${d.interview._id}`);}
     catch(err){setError((err as Error).message);}finally{setLoading(false);}
   }
   return <div className="page-enter setup-page"><Link to="/dashboard" className="back-link"><ArrowLeft size={16}/> Back to dashboard</Link><div className="page-heading"><div><span className="eyebrow"><Sparkles size={14}/> PERSONALIZE YOUR EXPERIENCE</span><h1>Set up your interview</h1><p>Tell us what you'd like to practice. We'll tailor the session to you.</p></div></div>
@@ -53,7 +53,7 @@ export function Setup() {
       </div>}
       <p>{useAI?'AI coaching selected.':'Practice selected: no provider calls and no automated score.'}</p>
       {error&&<div className="alert error" role="alert">{error}</div>}
-      <button type="submit" className="button primary full start-btn" disabled={loading || (useAI && !consented)}>{loading?'Preparing your interview...':'Start interview'} <ArrowRight size={18}/></button>
+      <button type="submit" className="button primary full start-btn" disabled={loading || (useAI && !consented)}>{loading?(useAI?'Writing your first question… this can take up to a minute':'Preparing your interview...'):'Start interview'} <ArrowRight size={18}/></button>
     </form><aside className="setup-aside"><div className="card info-card"><span className="info-icon"><Sparkles size={22}/></span><h3>What to expect</h3><div className="info-row"><Target size={18}/><span>Questions matched to your role and level</span></div><div className="info-row"><MessageCircle size={18}/><span>Follow-up questions based on your responses with AI enabled</span></div><div className="info-row"><Clock3 size={18}/><span>Take your time and think through each answer</span></div><div className="info-row"><CircleHelp size={18}/><span>Feedback at the end of your session</span></div></div><div className="hint-box"><BrainCircuit size={18}/><span>Tip: Give specific examples and explain your reasoning, not just the conclusion.</span></div></aside></div>
   </div>;
 }
