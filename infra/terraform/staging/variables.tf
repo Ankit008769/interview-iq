@@ -150,9 +150,9 @@ variable "model_image" {
 }
 
 variable "model_cpu" {
-  description = "vCPUs for the model sidecar. App plus sidecars must stay within 8 vCPUs per instance."
+  description = "vCPUs for the model sidecar (Cloud Run allows 0.08-1, 2, 4, 6 or 8). App plus sidecars must stay within 8 vCPUs per instance."
   type        = string
-  default     = "5"
+  default     = "6"
 }
 
 variable "model_memory" {
@@ -168,9 +168,9 @@ variable "voice_image" {
 }
 
 variable "voice_cpu" {
-  description = "vCPUs for the speech-to-text sidecar."
+  description = "vCPUs for the speech-to-text sidecar; 1 leaves Ollama its 6 within the 8 vCPU limit."
   type        = string
-  default     = "2"
+  default     = "1"
 }
 
 variable "voice_memory" {

@@ -33,7 +33,7 @@ it('prepares an app release as an untrafficked candidate with room to start', ()
 it('adds the speech sidecar within the 8 vCPU limit and points the app at it', () => {
   const { manifest } = candidate(live(), { revision: 'interview-iq-voice-abc1234', voiceImage: 'whisper:small' });
   const containers = manifest.spec.template.spec.containers;
-  expect(containers.map((c: any) => [c.name, c.resources.limits.cpu])).toEqual([['app', '1'], ['ollama', '5'], ['whisper', '2']]);
+  expect(containers.map((c: any) => [c.name, c.resources.limits.cpu])).toEqual([['app', '1'], ['ollama', '6'], ['whisper', '1']]);
   expect(containers[2]).toMatchObject({ image: 'whisper:small', startupProbe: { httpGet: { path: '/health', port: 8000 } } });
   expect(containers[2].ports).toBeUndefined();
   expect(containers[0].env).toEqual(expect.arrayContaining([{ name: 'TRANSCRIPTION_MODEL', value: 'small' }, { name: 'TRANSCRIPTION_BASE_URL', value: 'http://127.0.0.1:8000/v1' }]));
@@ -52,5 +52,7 @@ it('restores the single-instance cap without a new revision and refuses unsafe i
   expect(() => candidate(live(), { revision: 'interview-iq-languages-2a4cc85' })).toThrow(/already serving/);
   expect(() => candidate({ ...live(), status: undefined }, { revision: 'interview-iq-x' })).toThrow(/serving/);
   const big = live(); big.spec.template.spec.containers[1].resources.limits.cpu = '8';
-  expect(() => candidate(big, { revision: 'interview-iq-x' })).toThrow(/vCPU/);
+  expect(() => candidate(big, { revision: 'interview-iq-x' })).toThrow(/Cloud Run allows 8 per instance/);
+  const odd = live(); odd.spec.template.spec.containers[1].resources.limits.cpu = '5';
+  expect(() => candidate(odd, { revision: 'interview-iq-x' })).toThrow(/ollama asks for 5 vCPU/);
 });

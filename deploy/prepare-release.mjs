@@ -6,7 +6,8 @@
 //              [--voice-image IMG] [--voice-model small]
 //     New revision with no traffic, tagged "candidate", and the service maximum raised to 2 so it can start
 //     next to the serving revision (the service normally allows one instance). --voice-image adds or replaces
-//     the speech-to-text sidecar (deploy/whisper) and points the app at it.
+//     the speech-to-text sidecar (deploy/whisper, 1 vCPU so Ollama keeps 6 within the 8 vCPU limit) and points
+//     the app at it.
 //   restore    --in live.json --out next.json
 //     Same template (no new revision), service maximum back to 1.
 //
@@ -19,6 +20,8 @@ const OUTPUT_ONLY_METADATA = ['uid', 'selfLink', 'resourceVersion', 'generation'
 const OUTPUT_ONLY_ANNOTATIONS = ['serving.knative.dev/creator', 'serving.knative.dev/lastModifier', 'run.googleapis.com/operation-id',
   'run.googleapis.com/urls', 'run.googleapis.com/ingress-status', 'run.googleapis.com/satisfiesPzs'];
 const MAX_CPU = 8;
+// Cloud Run accepts per-container CPU of 0.08 to 1, or exactly 2, 4, 6 or 8.
+const validCpu = cpu => (cpu >= 0.08 && cpu <= 1) || [2, 4, 6, 8].includes(cpu);
 
 function strip(live) {
   const svc = structuredClone(live);
@@ -49,15 +52,16 @@ export function candidate(live, { revision, appImage, commit, voiceImage, voiceM
   if (appImage) app.image = appImage;
   if (commit) setEnv(app, 'DEPLOYMENT_COMMIT', commit);
   if (voiceImage) {
-    const ollama = containers.find(c => c.name === 'ollama');
-    if (ollama) ollama.resources = { ...ollama.resources, limits: { ...ollama.resources?.limits, cpu: '5' } };
     template.spec.containers = [...containers.filter(c => c.name !== 'whisper'), {
       name: 'whisper', image: voiceImage,
-      resources: { limits: { cpu: '2', memory: '2Gi' } },
+      resources: { limits: { cpu: '1', memory: '2Gi' } },
       startupProbe: { httpGet: { path: '/health', port: 8000 }, periodSeconds: 5, timeoutSeconds: 3, failureThreshold: 60 },
     }];
     setEnv(app, 'TRANSCRIPTION_MODEL', voiceModel);
     setEnv(app, 'TRANSCRIPTION_BASE_URL', 'http://127.0.0.1:8000/v1');
+  }
+  for (const c of template.spec.containers) {
+    if (!validCpu(Number(c.resources?.limits?.cpu ?? 1))) throw new Error(`Container ${c.name} asks for ${c.resources.limits.cpu} vCPU; Cloud Run allows 0.08-1, 2, 4, 6 or 8.`);
   }
   const cpu = template.spec.containers.reduce((sum, c) => sum + Number(c.resources?.limits?.cpu ?? 0), 0);
   if (cpu > MAX_CPU) throw new Error(`Containers request ${cpu} vCPU; Cloud Run allows ${MAX_CPU} per instance.`);

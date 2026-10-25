@@ -47,8 +47,11 @@ calls, plus `GET /health`. Audio is decoded in memory and never written or logge
   `http://127.0.0.1:8000/v1` and must be on localhost; `TRANSCRIPTION_TIMEOUT_MS`
   defaults to 300000 for local CPU.
 - Cloud Run: `deploy/whisper/Dockerfile` bakes the model in; it runs as a third
-  container (`whisper`, 2 vCPU, 2 GiB, startup probe `GET /health` on port 8000), with
-  Ollama reduced to 5 vCPU to stay within 8 vCPU per instance. `deploy/prepare-release.mjs
+  container (`whisper`, 1 vCPU, 2 GiB, startup probe `GET /health` on port 8000), so the
+  app (1) and Ollama (6) keep their CPUs within 8 vCPU per instance. Cloud Run only accepts
+  per-container CPU of 0.08–1, 2, 4, 6 or 8 (a first attempt with Ollama at 5 was refused),
+  and the release script now checks this. With one vCPU, online transcription is slower
+  than on the laptop. `deploy/prepare-release.mjs
   candidate --voice-image IMAGE` adds it and points the app at it; Terraform declares it
   (`voice_image`, `voice_cpu`, `voice_memory`).
 - `GET /api/health` reports `voice: "ready"` when the speech server answers. Turning
