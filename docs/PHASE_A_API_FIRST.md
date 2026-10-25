@@ -143,9 +143,9 @@ Next sequence:
    subtotal before claiming validated unit economics.
 2. Collect independent human ratings using the A5 toolkit. Synthetic examples and
    passing software tests cannot establish evaluator quality.
-3. Terraform read-only adoption audit passed: 29 imports and zero resource changes.
-   Remote state setup and import-only adoption remain pending; use a fresh guarded
-   plan before applying. See [INFRASTRUCTURE_AS_CODE.md](INFRASTRUCTURE_AS_CODE.md).
+3. Terraform remote state and import-only adoption are complete: 29 imported, zero
+   resource changes, and a fresh post-adoption plan with no changes. State is private
+   and versioned. See [INFRASTRUCTURE_AS_CODE.md](INFRASTRUCTURE_AS_CODE.md).
 4. Measure B1 transcription quality and latency on consented Indian English and
    Hinglish examples before progressing to real-time B2 voice. Resume/JD grounding
    remains a later B milestone with explicit ownership and deletion controls.
