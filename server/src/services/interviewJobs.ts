@@ -37,7 +37,7 @@ export async function processNextInterviewJob(): Promise<boolean> {
       await Interview.deleteOne({ _id: doc._id }); return true;
     }
     if (doc.mode === 'ai') await consumeAIQuota(doc.userId.toString());
-    const context = { role: doc.role, type: doc.type, difficulty: doc.difficulty,
+    const context = { role: doc.role, type: doc.type, difficulty: doc.difficulty, language: doc.language,
       topic: doc.topic, history: doc.turns, mode: doc.mode, usageContext: { userId: doc.userId.toString(), interviewId: doc.id } };
     const finished = doc.turns.length >= doc.totalQuestions;
     // Documents never go to the judge; only questions are tailored.

@@ -42,7 +42,7 @@ export async function processNextChallengeJob(): Promise<boolean> {
     if (!await User.exists({ _id: doc.userId, deletionRequestedAt: { $exists: false } })) return true;
     await consumeAIQuota(doc.userId.toString());
     const { rating, generation } = await reviewChallenge({ usageContext: { userId: doc.userId.toString(), interviewId: doc.id },
-      role: doc.role, type: doc.type, difficulty: doc.difficulty, topic: doc.topic, turn: doc.turns[challenge.questionIndex],
+      role: doc.role, type: doc.type, difficulty: doc.difficulty, topic: doc.topic, language: doc.language, turn: doc.turns[challenge.questionIndex],
       criterionId: challenge.criterionId, original: challenge.original, reason: challenge.reason });
     const decision = rating.score === challenge.original.score ? 'upheld' : 'revised';
     const set: Record<string, unknown> = { 'challenges.$[ch].state': 'resolved', 'challenges.$[ch].resolvedAt': new Date(),

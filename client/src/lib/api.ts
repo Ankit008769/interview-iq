@@ -42,11 +42,16 @@ export interface Interview {
   deliveryClips?: DeliveryClip[];
   starChecks?: StarCheck[];
   timeLimitSeconds?: number; questionStartedAt?: string; pausedAt?: string; pausedMs?: number;
+  language?: InterviewLanguage;
   answered?: number;
   processingState?: 'ready' | 'queued' | 'processing' | 'failed';
   processingError?: string;
   jobNextAttemptAt?: string;
 }
+export type InterviewLanguage = 'en' | 'hi' | 'hinglish';
+export const LANGUAGE_LABELS: Record<InterviewLanguage, string> = { en: 'English', hi: 'हिन्दी (Hindi)', hinglish: 'Hinglish' };
+// Browser speech language for reading questions aloud; Hinglish is Roman script, so an Indian English voice reads it best.
+export const SPEECH_LANG: Record<InterviewLanguage, string | undefined> = { en: undefined, hi: 'hi-IN', hinglish: 'en-IN' };
 export interface Overview { total: number; completed: number; averageScore: number | null; recent: Interview[] }
 export type Mode = 'ai' | 'practice';
 export class ApiError extends Error {

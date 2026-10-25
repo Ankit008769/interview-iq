@@ -6,6 +6,8 @@ import type { rubricFor } from '../services/rubrics.js';
 export type InterviewType = 'Technical' | 'Behavioral' | 'HR';
 export type InterviewLevel = 'Beginner' | 'Intermediate' | 'Advanced';
 export type InterviewStatus = 'in_progress' | 'completed';
+export const INTERVIEW_LANGUAGES = ['en', 'hi', 'hinglish'] as const;
+export type InterviewLanguage = typeof INTERVIEW_LANGUAGES[number];
 // Which of the candidate's documents a question was generated from, and the passage it is based on when
 // that passage was found verbatim. Deleting a document removes every question that lists it.
 export type QuestionGrounding = {
@@ -98,6 +100,7 @@ export interface IInterview {
   currentQuestionGeneration?: GenerationMetadata;
   currentQuestionGrounding?: QuestionGrounding;
   documentIds: mongoose.Types.ObjectId[];
+  language: InterviewLanguage;
   timeLimitSeconds?: number;
   questionStartedAt?: Date;
   pausedAt?: Date;
@@ -214,6 +217,7 @@ const interviewSchema = new Schema<IInterview>({
   currentQuestionGeneration: { type: generationSchema },
   currentQuestionGrounding: { type: groundingSchema },
   documentIds: { type: [Schema.Types.ObjectId], default: [] },
+  language: { type: String, enum: INTERVIEW_LANGUAGES, default: 'en' },
   timeLimitSeconds: { type: Number, enum: [120, 180, 300] },
   questionStartedAt: { type: Date },
   pausedAt: { type: Date },

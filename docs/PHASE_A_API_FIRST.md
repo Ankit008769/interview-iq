@@ -51,7 +51,9 @@ is not yet measured. B3 v1 resume/JD grounding (pasted text, verified source lin
 deletion of derived questions) is implemented and tested ([RESUME_JD_GROUNDING.md](RESUME_JD_GROUNDING.md));
 question relevance is not yet rated. B4 v1 delivery feedback (pace and precision-first filler counts from voice
 transcripts, with an off switch) and quote-verified STAR checks are implemented and tested
-([DELIVERY_AND_STAR.md](DELIVERY_AND_STAR.md)); filler precision on real transcripts is not yet measured. C adds isolated coding, system design,
+([DELIVERY_AND_STAR.md](DELIVERY_AND_STAR.md)); filler precision on real transcripts is not yet measured. B5 v1 Hindi and Hinglish AI interviews (questions and
+feedback in the chosen language, Hindi read-aloud) are implemented as a beta ([LANGUAGES.md](LANGUAGES.md));
+native-speaker quality and Hinglish speech accuracy are not measured. C adds isolated coding, system design,
 project defense and adaptive practice; training is conditional. D adds campus tools,
 billing and an optional offline client. E covers scale and research after usage
 justifies it. Employer assessment remains a separate, reviewed product decision.

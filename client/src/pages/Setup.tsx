@@ -2,7 +2,7 @@ import { AIConsent } from '../components/AIConsent';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, BrainCircuit, Check, CircleHelp, Clock3, FileText, MessageCircle, Sparkles, Target } from 'lucide-react';
-import { api, type CandidateDocument, type Interview, type Mode } from '../lib/api';
+import { api, LANGUAGE_LABELS, type CandidateDocument, type Interview, type InterviewLanguage, type Mode } from '../lib/api';
 const types=['Technical','Behavioral','HR'] as const;
 const topics=['DSA','React','Node.js','DBMS','Behavioral','General'];
 const difficulties=['Beginner','Intermediate','Advanced'] as const;
@@ -21,8 +21,11 @@ export function Setup() {
   const [documents,setDocuments]=useState<CandidateDocument[]|null>(null);const [resumeId,setResumeId]=useState('');const [jdId,setJdId]=useState('');
   useEffect(()=>{if(!useAI||documents)return;api<{documents:CandidateDocument[]}>('/documents').then(d=>setDocuments(d.documents.filter(x=>!x.deleting))).catch(()=>setDocuments([]));},[useAI,documents]);
   const documentIds=useAI?[resumeId,jdId].filter(Boolean):[];
+  // Practice questions come from the English bank; Hindi and Hinglish need the AI interviewer.
+  const [language,setLanguage]=useState<InterviewLanguage>('en');
+  const chosenLanguage:InterviewLanguage=useAI?language:'en';
   async function create(e:FormEvent) {e.preventDefault();setLoading(true);setError('');
-    try {const d=await api<{interview:Interview;mode:Mode}>('/interviews',{method:'POST',body:JSON.stringify({mode:useAI?'ai':'practice',role,type,difficulty,topic: type==='Technical'?topic:type==='Behavioral'?'Behavioral':'General',totalQuestions,...(timeLimit?{timeLimitSeconds:timeLimit}:{}),...(documentIds.length?{documentIds}:{})}),timeoutMs:180_000});navigate(`/interview/${d.interview._id}`);}
+    try {const d=await api<{interview:Interview;mode:Mode}>('/interviews',{method:'POST',body:JSON.stringify({mode:useAI?'ai':'practice',role,type,difficulty,topic: type==='Technical'?topic:type==='Behavioral'?'Behavioral':'General',totalQuestions,...(timeLimit?{timeLimitSeconds:timeLimit}:{}),...(documentIds.length?{documentIds}:{}),...(chosenLanguage!=='en'?{language:chosenLanguage}:{})}),timeoutMs:180_000});navigate(`/interview/${d.interview._id}`);}
     catch(err){setError((err as Error).message);}finally{setLoading(false);}
   }
   return <div className="page-enter setup-page"><Link to="/dashboard" className="back-link"><ArrowLeft size={16}/> Back to dashboard</Link><div className="page-heading"><div><span className="eyebrow"><Sparkles size={14}/> PERSONALIZE YOUR EXPERIENCE</span><h1>Set up your interview</h1><p>Tell us what you'd like to practice. We'll tailor the session to you.</p></div></div>
@@ -45,6 +48,9 @@ export function Setup() {
       <p className="timing-note">{timeLimit?`A countdown runs for each question, up to ${totalQuestions*timeLimit/60} minutes in total. You can pause it, and you can still submit after time runs out; your results show how long each answer took.`:'No countdown. Your results still show how long each answer took.'}</p>
       <div className="line"/><AIConsent onChange={(ready,available)=>{setConsented(ready);setAIAvailable(available);}}/>
       {aiAvailable&&<label className="consent-check"><input type="checkbox" checked={useAI} onChange={e=>setUseAI(e.target.checked)}/> Use AI for this interview (requires permission above)</label>}
+      {useAI&&<div className="language-box"><h3>Interview language</h3>
+        <div className="segmented language-select" role="group" aria-label="Interview language">{(['en','hi','hinglish'] as const).map(v=><button type="button" key={v} aria-pressed={language===v} onClick={()=>setLanguage(v)} className={language===v?'active':''}>{LANGUAGE_LABELS[v]}</button>)}</div>
+        <p className="timing-note">{language==='en'?'Questions and feedback in English.':language==='hi'?'Beta: questions and feedback in Hindi (Devanagari). Answer in Hindi, English or a mix; technical terms stay in English. Hindi from the current model can sound unnatural, and scoring is slower.':'Beta: questions and feedback in Hinglish (Roman script). Answer in Hindi, English or a mix. Scoring of mixed-language answers is less accurate than English.'}</p></div>}
       {useAI&&<div className="tailor-box"><h3><FileText size={17}/> Tailor to your resume or a job description <span>(optional)</span></h3>
         {documents===null?<p>Loading your documents…</p>:!documents.length?<p>Add a resume or job description to get questions about your own projects and the role. <Link to="/documents">Add one</Link></p>:<>
           <div className="tailor-grid"><label className="field">Resume<select value={resumeId} onChange={e=>setResumeId(e.target.value)}><option value="">None</option>{documents.filter(d=>d.kind==='resume').map(d=><option key={d.id} value={d.id}>{d.title}</option>)}</select></label>

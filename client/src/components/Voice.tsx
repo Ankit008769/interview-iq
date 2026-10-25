@@ -5,7 +5,7 @@ import { DeliveryNote } from './Delivery';
 import type { Delivery } from '../lib/api';
 
 // Prefer local browser voices; remote/browser-managed voices may use a provider.
-export function ReadAloud({ text }: { text: string }) {
+export function ReadAloud({ text, lang }: { text: string; lang?: string }) {
   const [speaking, setSpeaking] = useState(false);
   const supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
   useEffect(() => { setSpeaking(false); return () => { if (supported) window.speechSynthesis.cancel(); }; }, [supported, text]);
@@ -14,8 +14,12 @@ export function ReadAloud({ text }: { text: string }) {
     window.speechSynthesis.cancel();
     if (speaking) { setSpeaking(false); return; }
     const utterance = new SpeechSynthesisUtterance(text);
-    const localVoice = window.speechSynthesis.getVoices?.().find(voice => voice.localService);
-    if (localVoice) utterance.voice = localVoice;
+    const voices = window.speechSynthesis.getVoices?.() ?? [];
+    // Prefer a voice for the interview's language, then a local one.
+    const matching = lang ? voices.filter(voice => voice.lang?.toLowerCase().startsWith(lang.toLowerCase())) : voices;
+    const voice = matching.find(v => v.localService) ?? matching[0] ?? (lang ? undefined : voices.find(v => v.localService));
+    if (lang) utterance.lang = lang;
+    if (voice) utterance.voice = voice;
     utterance.onend = utterance.onerror = () => setSpeaking(false);
     window.speechSynthesis.speak(utterance);
     setSpeaking(true);

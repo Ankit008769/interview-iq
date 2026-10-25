@@ -39,14 +39,15 @@ describe('verified evidence contract', () => {
   });
   it('keeps the verdict, key points and tip, counts unrated criteria as 0 and keeps only quoted strengths', () => {
     const raw = { ...response(), overall: { summary: 'You named the core difference.', improvements: ['Discuss insertion cost.'], nextSteps: ['Explain one trade-off aloud.'],
-      strengths: [{ text: 'Clear contrast', quote: 'Arrays allow indexed access.' }, { text: 'Leadership', quote: 'I led a team of ten' }, { text: 'Blank', quote: '  ' }] } };
+      strengths: [{ text: 'Clear contrast', quote: 'Arrays allow indexed access.' }, { text: 'Leadership', quote: 'I led a team of ten' },
+        { text: 'Linked lists require traversal.', quote: 'Linked lists require traversal.' }] } };
     Object.assign(raw.answers[0], { verdict: 'partly_correct', verdictReason: 'It names indexed access but not insertion.', keyPoints: ['Indexed reads are O(1)', 'Insertion shifts elements'], tip: 'Add the cost of insertion.' });
     raw.answers[0].criteria.slice(2).forEach(c => { c.quote = 'not in the answer'; });
     const result = verifyEvidence(raw, turns, 'Technical');
     expect(result[0].review).toEqual({ verdict: 'partly_correct', reason: 'It names indexed access but not insertion.', keyPoints: ['Indexed reads are O(1)', 'Insertion shifts elements'], tip: 'Add the cost of insertion.' });
     const summary = summarizeEvidence(result, raw.overall, turns);
     expect(summary.score).toBe(32); // two criteria at 4, three without evidence: 8 / 5 × 20
-    expect(summary.strengths).toEqual(['Clear contrast — “Arrays allow indexed access.”']);
+    expect(summary.strengths).toEqual(['Clear contrast — “Arrays allow indexed access.”', '“Linked lists require traversal.”']);
     expect(summary.summary).toMatch(/^You named the core difference\. 2 of 5 criterion ratings/);
     expect(summary).toMatchObject({ improvements: ['Discuss insertion cost.'], nextSteps: ['Explain one trade-off aloud.'] });
     expect(verifyEvidence(response(), turns, 'Technical')[0].review).toBeUndefined();

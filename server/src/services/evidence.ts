@@ -100,7 +100,10 @@ export function summarizeEvidence(answers: AnswerEvaluation[], overall?: z.infer
   const facts = `${rated.length} of ${all.length} criterion ratings have verified answer quotes; criteria without evidence count as 0. This is AI coaching feedback, not a hiring prediction.`;
   const strengths = (overall?.strengths ?? []).flatMap(s => {
     const quote = s.quote.trim();
-    return quote && turns.some(t => t.answer.includes(quote)) ? [`${s.text} — “${quote}”`] : [];
+    if (!quote || !turns.some(t => t.answer.includes(quote))) return [];
+    // Small models sometimes repeat the quote as the description; show it once.
+    const text = s.text.trim();
+    return [!text || quote.includes(text) || text.includes(quote) ? `“${quote}”` : `${text} — “${quote}”`];
   });
   return {
     score: all.length ? Math.round(all.reduce((sum, c) => sum + (c.score ?? 0), 0) / all.length * 20) : null,

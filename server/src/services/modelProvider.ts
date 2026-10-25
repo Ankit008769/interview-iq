@@ -111,7 +111,8 @@ const audioExtensions: Record<string, string> = { 'audio/webm': 'webm', 'audio/o
 
 // Speech to text through the configured provider's OpenAI-compatible /audio/transcriptions endpoint
 // (OpenAI, or a self-hosted Whisper server). The audio is passed through and never stored.
-export async function transcribeAudio(audio: Buffer, mimeType: string, usageContext: { userId: string; interviewId?: string }) {
+// language (ISO 639-1) is a hint for single-language interviews; mixed Hinglish is left to auto-detection.
+export async function transcribeAudio(audio: Buffer, mimeType: string, usageContext: { userId: string; interviewId?: string }, language?: string) {
   const config = providerConfig();
   if (!config.transcriptionModel) throw new Error('Transcription is not configured.');
   const consent = await requireAIConsent(usageContext.userId);
@@ -123,7 +124,7 @@ export async function transcribeAudio(audio: Buffer, mimeType: string, usageCont
   try {
     const file = await toFile(audio, `answer.${audioExtensions[mimeType] ?? 'webm'}`, { type: mimeType });
     await requireAIConsent(usageContext.userId);
-    const result = await client.audio.transcriptions.create({ model: config.transcriptionModel, file });
+    const result = await client.audio.transcriptions.create({ model: config.transcriptionModel, file, ...(language ? { language } : {}) });
     const usage = (result as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
     await AIUsage.updateOne({ _id: attempt._id }, { $set: { status: 'succeeded', latencyMs: Date.now() - started,
       inputTokens: usage?.input_tokens ?? null, outputTokens: usage?.output_tokens ?? null } });
