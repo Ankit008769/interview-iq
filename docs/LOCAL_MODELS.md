@@ -147,7 +147,11 @@ the faster but out-of-India alternative.
 - Terraform declares the sidecar (`model_image`, `model_cpu`, `model_memory`,
   `app_container_name`); releases still own the app image and environment.
 
-**Current (25 October 2026, 11:32 UTC):** revision `interview-iq-voice-9ae0c55` serves 100% of traffic:
+**Current (25 October 2026, 11:58 UTC):** revision `interview-iq-visibility-5926cbd` serves 100% of traffic
+with app `interview-iq:5926cbd` (`sha256:45d7117bca83ca3b9e0a83cbf252a76fe59bbb0afaa0cf52c8f6b6cc8c02e683`: dashboard "New in AI interviews" panel, AI on by default in setup,
+clearer permission prompts) and the same Ollama and speech containers; rollback `interview-iq-voice-9ae0c55`.
+
+**Previous (11:32 UTC):** revision `interview-iq-voice-9ae0c55` served 100% of traffic:
 app `interview-iq:9ae0c55` (`sha256:98d7984dbf0039828f0df7b96e5f7fef49780d987ea58c21a3674f9d3c791933`), Ollama `interview-iq-ollama:0.40.11-qwen3.5-4b-v2` (6 vCPU) and
 speech-to-text `interview-iq-whisper:1.2.1-small` (`sha256:3f2237cdb419d9987bfc2834a3487c543554031a343f0775d9603c53eb953310`, 1 vCPU); `/api/health` reports model and voice
 ready. Voice answers are on (see [VOICE_ANSWERS.md](VOICE_ANSWERS.md)). Rollback revision
