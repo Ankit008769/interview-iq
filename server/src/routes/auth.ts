@@ -7,7 +7,7 @@ import { AccountToken, AuthSession } from '../models/Account.js';
 import { AuthRequest, requireAuth } from '../middleware/auth.js';
 import { accountVersionFilter, clearSession, issueAccountToken, setSession, tokenHash, userView } from '../services/account.js';
 import * as mail from '../services/accountMail.js';
-import { consumeQuota } from '../services/quotas.js';
+import { consumeQuota, quotaLimit } from '../services/quotas.js';
 const router = Router();
 const password = z.string().min(8).max(72); // bcrypt consumes at most 72 UTF-8 bytes; checked below.
 export const validPassword = (value: string) => Buffer.byteLength(value, 'utf8') <= 72;
@@ -16,7 +16,7 @@ const registerSchema = payloadSchema.extend({ name: z.string().trim().min(2).max
 export const authLimit: RequestHandler = async (req, _res, next) => {
   try {
     const ip = createHmac('sha256', process.env.JWT_SECRET!).update(req.ip || 'unknown').digest('hex');
-    await consumeQuota(`auth:${ip}`, req.path, 20, 900_000); next();
+    await consumeQuota(`auth:${ip}`, req.path, quotaLimit('AUTH_REQUESTS_PER_15_MIN', 20), 900_000); next();
   } catch (error) { next(error); }
 };
 router.get('/capabilities', (_req, res) => res.json({ emailDelivery: mail.emailDeliveryAvailable() }));

@@ -6,6 +6,7 @@ import { User } from '../src/models/User.js';
 import { Interview } from '../src/models/Interview.js';
 import { AccountToken, AuthSession, AccountDeletion } from '../src/models/Account.js';
 import { AIUsage } from '../src/models/AIUsage.js';
+import { CandidateDocument } from '../src/models/CandidateDocument.js';
 import { QuotaBucket } from '../src/services/quotas.js';
 import { issueAccountToken, processAccountDeletions, tokenHash } from '../src/services/account.js';
 import * as mail from '../src/services/accountMail.js';
@@ -18,6 +19,7 @@ let mongo: MongoMemoryServer;
 const password = 'account-test-password';
 let sequence = 0;
 const setup = {role:'Developer',type:'Technical',difficulty:'Beginner',topic:'React',totalQuestions:2};
+const resume = {kind:'resume',title:'My resume',text:'Built a React dashboard used by forty campus placement officers every week.'};
 beforeAll(async()=>{ mongo=await MongoMemoryServer.create(); await mongoose.connect(mongo.getUri()); await Promise.all([AuthSession.init(),AccountToken.init(),AccountDeletion.init()]); },120_000);
 beforeEach(async()=>{vi.stubEnv('AI_PROVIDER','practice'); await Promise.all(Object.values(mongoose.connection.collections).map(c=>c.deleteMany({})));});
 afterEach(()=>{vi.restoreAllMocks();vi.unstubAllEnvs();});
@@ -84,8 +86,10 @@ it('exports only owned data and reports unknown usage separately',async()=>{
   const a=await register(), b=await register();await a.agent.post('/api/interviews').send(setup).expect(201);await b.agent.post('/api/interviews').send(setup).expect(201);
   await AIUsage.create([{userId:a.id,status:'failed',inputTokens:12,outputTokens:4},{userId:a.id},{userId:b.id,inputTokens:9000,outputTokens:9000}]);
   await AIUsage.collection.updateMany({status:'started'},{$unset:{cost:1}});
+  await a.agent.post('/api/documents').send(resume).expect(201);await b.agent.post('/api/documents').send({...resume,title:'Other resume'}).expect(201);
   const exported=await a.agent.get('/api/account/export').expect(200);
   expect(exported.body.interviews).toHaveLength(1);expect(exported.body.usage).toHaveLength(2);
+  expect(exported.body.documents).toHaveLength(1);expect(exported.body.documents[0]).toMatchObject({title:'My resume',text:resume.text});
   expect(exported.body.user.id).toBe(a.id);expect(JSON.stringify(exported.body)).not.toContain('passwordHash');expect(JSON.stringify(exported.body)).not.toContain(b.id);
   const usage=(await a.agent.get('/api/account/usage').expect(200)).body;
   expect(usage.rows.find((r:any)=>r._id==='started').unknownCost).toBe(1);
@@ -93,6 +97,7 @@ it('exports only owned data and reports unknown usage separately',async()=>{
 });
 it('deletion revokes access immediately, retries cleanup and removes late writes using receipts',async()=>{
   const a=await register(), b=await register();await a.agent.post('/api/interviews').send(setup).expect(201);
+  await a.agent.post('/api/documents').send(resume).expect(201);await b.agent.post('/api/documents').send(resume).expect(201);
   await AIUsage.create({userId:a.id});await issueAccountToken((await User.findById(a.id))!,'reset');
   await a.agent.post('/api/account/delete').send({password,confirmation:'wrong'}).expect(400);
   await a.agent.post('/api/account/delete').send({password,confirmation:'DELETE'}).expect(202);
@@ -103,7 +108,8 @@ it('deletion revokes access immediately, retries cleanup and removes late writes
   await expect(processAccountDeletions(new Date(Date.now()+61000))).rejects.toThrow('temporary DB failure');
   expect(await User.findById(a.id)).not.toBeNull();
   await processAccountDeletions(new Date(Date.now()+61000));expect(await User.findById(a.id)).toBeNull();
-  for(const model of [Interview,AIUsage,AuthSession,AccountToken] as any[]) expect(await model.countDocuments({userId:a.id})).toBe(0);
+  for(const model of [Interview,CandidateDocument,AIUsage,AuthSession,AccountToken] as any[]) expect(await model.countDocuments({userId:a.id})).toBe(0);
+  expect(await CandidateDocument.countDocuments({userId:b.id})).toBe(1);
   expect(await QuotaBucket.countDocuments({_id:{$regex:`^${a.id}:`}})).toBe(0);
   expect(await AccountDeletion.countDocuments({userId:a.id})).toBe(1);
   await AIUsage.create({userId:a.id});await processAccountDeletions(new Date(Date.now()+122000));expect(await AIUsage.countDocuments({userId:a.id})).toBe(0);

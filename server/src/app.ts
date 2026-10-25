@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import authRoutes from './routes/auth.js';
 import accountRoutes from './routes/account.js';
 import interviewRoutes from './routes/interviews.js';
+import documentRoutes from './routes/documents.js';
 import { QuotaError } from './services/quotas.js';
 import { interviewMode } from './services/ai.js';
 
@@ -40,6 +41,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/account', accountRoutes);
 app.use('/api/interviews', interviewRoutes);
+app.use('/api/documents', documentRoutes);
 if (process.env.SERVE_CLIENT === 'true') {
   const clientDist = fileURLToPath(new URL('../../client/dist/', import.meta.url));
   app.use(express.static(clientDist));

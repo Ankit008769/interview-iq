@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { AnswerRewrite, CriterionRating, Feedback, ScoreChallenge, Turn } from '../lib/api';
 import { TurnTiming } from './Timing';
+import { QuestionSource } from './Grounding';
 
 export function RubricGuide({ rubric }: { rubric: NonNullable<Feedback['rubric']> }) {
   return <details className="card rubric-guide">
@@ -96,6 +97,7 @@ export function EvidenceReview({ turn, index, criteria, challenges = [], canChal
   return <article className="card review-turn evidence-review">
     <span className="question-label">QUESTION {index + 1} · {turn.topic}</span>
     <h4>{turn.question}</h4>
+    <QuestionSource grounding={turn.grounding} />
     <TurnTiming turn={turn} limit={limit} />
     <div className="review-answer" aria-label={`Your answer to question ${index + 1}`}>
       {verified ? <>{turn.answer.slice(0, evidence.start)}<mark>{evidence.quote}</mark>{turn.answer.slice(evidence.end)}</> : turn.answer}

@@ -9,6 +9,7 @@ import { Interview } from '../models/Interview.js';
 import { AuthSession, AccountToken, AccountDeletion } from '../models/Account.js';
 import { replicateDeletionReceipt } from '../services/deletionLedger.js';
 import { AIUsage } from '../models/AIUsage.js';
+import { CandidateDocument } from '../models/CandidateDocument.js';
 import { accountVersionFilter, clearSession, userView } from '../services/account.js';
 import { authLimit, validPassword } from './auth.js';
 const router = Router(); router.use(requireAuth);
@@ -95,6 +96,11 @@ router.get('/export', async (req, res, next) => {
     for await (const interview of Interview.find({ userId }).lean().cursor()) {
       if (res.destroyed) return;
       await write((first ? '' : ',') + JSON.stringify(interview)); first = false;
+    }
+    await write('],"documents":['); first = true;
+    for await (const document of CandidateDocument.find({ userId }).lean().cursor()) {
+      if (res.destroyed) return;
+      await write((first ? '' : ',') + JSON.stringify(document)); first = false;
     }
     await write('],"usage":['); first = true;
     for await (const usage of AIUsage.find({ userId }).lean().cursor()) {

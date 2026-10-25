@@ -1,5 +1,8 @@
 export interface User { id: string; name: string; email: string; emailVerified?: boolean }
-export interface Turn { question: string; answer: string; topic: string; answeredAt: string; elapsedSeconds?: number; pausedSeconds?: number; overTime?: boolean }
+export type DocumentKind = 'resume' | 'job_description';
+export interface QuestionGrounding { documentIds: string[]; source?: { documentId: string; kind: DocumentKind; quote: string; start: number; end: number } }
+export interface CandidateDocument { id: string; kind: DocumentKind; title: string; chars: number; createdAt: string; deleting?: boolean; text?: string }
+export interface Turn { question: string; answer: string; topic: string; answeredAt: string; elapsedSeconds?: number; pausedSeconds?: number; overTime?: boolean; grounding?: QuestionGrounding }
 export interface Feedback {
   source: 'ai' | 'practice'; score: number | null; summary: string;
   strengths: string[]; improvements: string[]; nextSteps: string[];
@@ -24,7 +27,7 @@ export interface Interview {
   _id: string; userId: string; role: string; type: 'Technical' | 'Behavioral' | 'HR';
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced'; topic: string;
   totalQuestions: number; status: 'in_progress' | 'completed';
-  currentQuestion: string; currentTopic: string;
+  currentQuestion: string; currentTopic: string; currentQuestionGrounding?: QuestionGrounding; documentIds?: string[];
   turns: Turn[]; createdAt: string; completedAt?: string; feedback?: Feedback;
   challenges?: ScoreChallenge[];
   rewrites?: AnswerRewrite[];

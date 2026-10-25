@@ -7,6 +7,7 @@ import { consumeAIQuota, QuotaError } from './quotas.js';
 import { processAccountDeletions } from './account.js';
 import { processNextChallengeJob } from './challenges.js';
 import { User } from '../models/User.js';
+import { groundingDocuments } from './documents.js';
 
 export const MAX_JOB_ATTEMPTS = 3;
 export const JOB_LEASE_MS = 120_000;
@@ -39,13 +40,22 @@ export async function processNextInterviewJob(): Promise<boolean> {
     const context = { role: doc.role, type: doc.type, difficulty: doc.difficulty,
       topic: doc.topic, history: doc.turns, mode: doc.mode, usageContext: { userId: doc.userId.toString(), interviewId: doc.id } };
     const finished = doc.turns.length >= doc.totalQuestions;
-    const result = finished
-      ? { status: 'completed', completedAt: new Date(), feedback: await evaluateInterview(context) }
-      : await generateQuestion({ ...context, turnIndex: doc.turns.length }).then(q => ({ currentQuestion: q.question, currentTopic: q.topic,
-        currentQuestionId: q.questionId, currentQuestionGeneration: q.generation, questionStartedAt: new Date(), pausedMs: 0 }));
+    // Documents never go to the judge; only questions are tailored.
+    const documents = finished || doc.mode !== 'ai' ? [] : await groundingDocuments(doc.userId, doc.documentIds ?? []);
+    const question = finished ? undefined : await generateQuestion({ ...context, documents, turnIndex: doc.turns.length });
+    const result = question
+      ? { currentQuestion: question.question, currentTopic: question.topic, currentQuestionId: question.questionId,
+        currentQuestionGeneration: question.generation, questionStartedAt: new Date(), pausedMs: 0,
+        ...(question.grounding ? { currentQuestionGrounding: question.grounding } : {}) }
+      : { status: 'completed', completedAt: new Date(), feedback: await evaluateInterview(context) };
     // The question clock starts when the next question is ready, so processing time is never counted.
-    await Interview.updateOne(fence, { $set: { ...result, processingState: 'ready' },
-      $unset: { jobLeaseToken: 1, jobLeaseUntil: 1, jobNextAttemptAt: 1, processingError: 1, pausedAt: 1 } }, { runValidators: true });
+    // A document deleted while this ran is no longer listed, so the write misses and the job requeues without it.
+    const saved = await Interview.updateOne({ ...fence, ...(documents.length ? { documentIds: { $all: documents.map(d => d.id) } } : {}) },
+      { $set: { ...result, processingState: 'ready' },
+        $unset: { jobLeaseToken: 1, jobLeaseUntil: 1, jobNextAttemptAt: 1, processingError: 1, pausedAt: 1,
+          ...(question && !question.grounding ? { currentQuestionGrounding: 1 } : {}) } }, { runValidators: true });
+    if (!saved.matchedCount && documents.length) await Interview.updateOne(fence, { $set: { processingState: 'queued', jobNextAttemptAt: new Date() },
+      $inc: { jobAttempts: -1 }, $unset: { jobLeaseToken: 1, jobLeaseUntil: 1 } });
   } catch (err) {
     if (err instanceof ConsentRequiredError) {
       await Interview.updateOne(fence, {$set:{processingState:'failed',processingError:err.message},$unset:{jobLeaseToken:1,jobLeaseUntil:1}});

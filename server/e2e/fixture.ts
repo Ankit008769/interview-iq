@@ -19,6 +19,8 @@ process.env.CLIENT_ORIGIN = 'http://127.0.0.1:5101';
 process.env.NODE_ENV = 'test';
 process.env.SERVE_CLIENT = 'true';
 process.env.AI_PROVIDER = 'practice';
+// Every browser test registers from 127.0.0.1, so the per-IP auth limit needs headroom here only.
+process.env.AUTH_REQUESTS_PER_15_MIN = '200';
 process.env.MONGOMS_VERSION = '8.2.6';
 process.env.MONGOMS_DOWNLOAD_DIR = fileURLToPath(new URL('../node_modules/.cache/mongodb-memory-server', import.meta.url));
 delete process.env.OPENAI_API_KEY;
@@ -32,7 +34,7 @@ host.use(cookieParser());
 host.post('/__test/enable-ai', requireAuth, (_req,res)=>{process.env.AI_PROVIDER='openai';process.env.OPENAI_API_KEY='test-only-not-real';res.sendStatus(204);});
 host.post('/__test/disable-ai', (_req,res)=>{process.env.AI_PROVIDER='practice';delete process.env.OPENAI_API_KEY;res.sendStatus(204);});
 // Loopback OpenAI-compatible stand-in. Transcriptions return a fixed sentence; new questions are
-// numbered; for the seeded evidence answer, rewrites restate both seeded sentences plus one bracketed
+// numbered, and tailored ones cite the first line of the first document; for the seeded evidence answer, rewrites restate both seeded sentences plus one bracketed
 // prompt and second reviews rate the seeded quote 5.
 const gateway = createServer(async (req, res) => {
   let body = ''; for await (const chunk of req) body += chunk;
@@ -44,6 +46,8 @@ const gateway = createServer(async (req, res) => {
       { kind: 'answer', text: 'Arrays give direct indexed access.', quote: 'Arrays allow indexed access.' },
       { kind: 'answer', text: 'Linked lists must be walked to reach an element.', quote: 'Linked lists require traversal.' },
       { kind: 'addition', text: '[Add the time complexity of each operation]', quote: null }] }
+    : input.documents ? { question: `Tell me about the project behind this line, question ${input.questionNumber}.`, topic: 'Projects',
+      source: { document: input.documents[0].kind, quote: input.documents[0].text.split(/\r?\n/)[0] } }
     : input.questionNumber !== undefined ? { question: `Explain indexed access, question ${input.questionNumber}.`, topic: 'DSA' }
       : { score: 5, quote: 'Arrays allow indexed access.', rationale: 'The answer names indexed access explicitly.', improvement: null };
   res.end(JSON.stringify({ id: 'chatcmpl_fixture', object: 'chat.completion', created: 1, model: 'fixture-judge',

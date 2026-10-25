@@ -9,6 +9,7 @@ vi.mock('@google-cloud/storage', () => ({ Storage: class {
 import { AccountDeletion, AuthSession, AccountToken } from '../src/models/Account.js';
 import { User } from '../src/models/User.js';
 import { AIUsage } from '../src/models/AIUsage.js';
+import { CandidateDocument } from '../src/models/CandidateDocument.js';
 import { processAccountDeletions } from '../src/services/account.js';
 import { writeDeletionReceipt } from '../src/services/deletionLedger.js';
 import { parseReceipt, reconcileDeletions, readDeletionLedger, validateRestoreTarget } from '../src/services/deletionRestore.js';
@@ -73,12 +74,15 @@ it('recovers a marker if the process stopped before creating its receipt', async
 it('reconciles a pre-deletion restore, preserves other users, removes late writes and revokes all sessions', async () => {
   const a = await register(), b = await register(); const at = new Date().toISOString();
   await AIUsage.create([{ userId: a.id }, { userId: b.id }]);
+  const doc = { kind: 'resume', title: 'Resume', text: 'Restored resume text.', chars: 21 };
+  await CandidateDocument.create([{ userId: a.id, ...doc }, { userId: b.id, ...doc }]);
   await AccountToken.create({ userId: b.id, tokenHash: 'test-hash', version: 0, purpose: 'reset', expiresAt: new Date(Date.now() + 60000) });
   const db = mongoose.connection.db!;
   const receipts = [{ version: 1 as const, userId: a.id, requestedAt: at }];
   await reconcileDeletions(db, receipts);
   expect(await User.findById(a.id)).toBeNull(); expect(await User.findById(b.id)).not.toBeNull();
   expect(await AIUsage.countDocuments({ userId: a.id })).toBe(0); expect(await AIUsage.countDocuments({ userId: b.id })).toBe(1);
+  expect(await CandidateDocument.countDocuments({ userId: a.id })).toBe(0); expect(await CandidateDocument.countDocuments({ userId: b.id })).toBe(1);
   expect(await AuthSession.countDocuments()).toBe(0); expect(await AccountToken.countDocuments()).toBe(0);
   await AIUsage.create({ userId: a.id }); await reconcileDeletions(db, receipts); expect(await AIUsage.countDocuments({ userId: a.id })).toBe(0);
 });

@@ -1,6 +1,6 @@
 # InterviewIQ — AI Mock Interview Coach (MERN starter)
 
-A portfolio-level MERN application for realistic, role-specific mock interviews. This repository contains a **working application scaffold** for signup, login, interview configuration, text-based question/answer sessions, feedback, dashboard and history. Questions can be read aloud, and AI interviews accept spoken answers that are transcribed for review when a transcription model is configured ([voice answers](docs/VOICE_ANSWERS.md)). Resume uploads and real-time voice are *planned*, not implemented in this version.
+A portfolio-level MERN application for realistic, role-specific mock interviews. This repository contains a **working application scaffold** for signup, login, interview configuration, text-based question/answer sessions, feedback, dashboard and history. Questions can be read aloud, and AI interviews accept spoken answers that are transcribed for review when a transcription model is configured ([voice answers](docs/VOICE_ANSWERS.md)). AI interviews can be tailored to a pasted resume or job description, with the source line shown under each tailored question ([resume and JD grounding](docs/RESUME_JD_GROUNDING.md)). File uploads and real-time voice are *planned*, not implemented in this version.
 
 ## Current flow
 
@@ -80,6 +80,8 @@ docs                   Next stages and architecture
 | POST | `/api/interviews/:id/rewrites` | Build a stronger version of one answer from the candidate's own words (see [answer rewrites](docs/ANSWER_REWRITES.md)) |
 | POST | `/api/interviews/:id/pause` · `/resume` | Stop or restart a timed question's clock (see [timed rounds](docs/TIMED_ROUNDS.md)) |
 | POST | `/api/interviews/:id/transcribe` | Transcribe one spoken answer for review; the recording is not stored (see [voice answers](docs/VOICE_ANSWERS.md)) |
+| GET · POST | `/api/documents` | List or save the caller's pasted resumes and job descriptions (see [resume and JD grounding](docs/RESUME_JD_GROUNDING.md)) |
+| GET · DELETE | `/api/documents/:id` | Read one document, or delete it together with the interview questions generated from it |
 
 All interview endpoints require authentication and enforce interview ownership. Submission checks prevent duplicate additions to the same question.
 

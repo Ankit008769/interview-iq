@@ -12,6 +12,7 @@ import { consumeAIQuota, consumeQuota, quotaLimit } from '../services/quotas.js'
 import { MAX_CHALLENGES_PER_INTERVIEW } from '../services/challenges.js';
 import { providerConfig, transcribeAudio } from '../services/modelProvider.js';
 import { randomUUID } from 'node:crypto';
+import { groundingDocuments, removeDerivedQuestions } from '../services/documents.js';
 
 // Accepted recording formats, each checked against its leading bytes rather than trusting the header.
 const audioSignatures: Record<string, (b: Buffer) => boolean> = {
@@ -35,6 +36,7 @@ const makeSchema = z.object({
   topic: z.string().trim().min(2).max(100),
   totalQuestions: z.number().int().min(2).max(5),
   timeLimitSeconds: z.union([z.literal(120), z.literal(180), z.literal(300)]).optional(),
+  documentIds: z.array(z.string().regex(/^[a-f0-9]{24}$/)).max(2).optional(),
 });
 const answerSchema = z.object({
   answer: z.string().trim().min(10).max(3500),
@@ -134,14 +136,26 @@ router.post('/', aiLimit, async (req, res, next) => {
   try {
     const parsed = makeSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: 'Choose a valid role, topic, type, difficulty and number of questions.' }); return; }
-    const input = { ...parsed.data, mode: parsed.data.mode || interviewMode() };
+    const { documentIds: requested = [], ...fields } = parsed.data;
+    const input = { ...fields, mode: fields.mode || interviewMode() };
+    const ids = [...new Set(requested)];
+    const documents = ids.length ? await groundingDocuments(userId(req), ids) : [];
+    if (ids.length && input.mode !== 'ai') { res.status(400).json({ error: 'Tailoring to a resume or job description needs an AI interview.' }); return; }
+    if (documents.length !== ids.length) { res.status(400).json({ error: 'Choose documents from your saved resumes and job descriptions.' }); return; }
+    if (new Set(documents.map(d => d.kind)).size !== documents.length) { res.status(400).json({ error: 'Choose at most one resume and one job description.' }); return; }
     if (input.mode === 'ai') await requireAIConsent(userId(req));
     await consumeQuota(userId(req), 'daily interview starts', quotaLimit('INTERVIEWS_PER_DAY', 20), 86400_000);
     if (input.mode === 'ai') await consumeAIQuota(userId(req));
     const id = new mongoose.Types.ObjectId();
-    const first = await generateQuestion({ ...input, usageContext: { userId: userId(req), interviewId: id.toString() }, turnIndex: 0, history: [] });
+    const first = await generateQuestion({ ...input, documents, usageContext: { userId: userId(req), interviewId: id.toString() }, turnIndex: 0, history: [] });
     if (!await User.exists({ _id: userId(req), deletionRequestedAt: { $exists: false } })) { res.sendStatus(401); return; }
-    const doc = await Interview.create({ _id: id, userId: userId(req), ...input, status: 'in_progress', currentQuestion: first.question, currentTopic: first.topic, currentQuestionId: first.questionId, currentQuestionGeneration: first.generation, questionStartedAt: new Date(), pausedMs: 0, turns: [] });
+    let doc = await Interview.create({ _id: id, userId: userId(req), ...input, documentIds: documents.map(d => d.id), status: 'in_progress', currentQuestion: first.question, currentTopic: first.topic, currentQuestionId: first.questionId, currentQuestionGeneration: first.generation, currentQuestionGrounding: first.grounding, questionStartedAt: new Date(), pausedMs: 0, turns: [] });
+    // A document deleted while the first question was generated must not survive in the new interview.
+    if (documents.length) {
+      const live = new Set((await groundingDocuments(userId(req), ids)).map(d => d.id.toString()));
+      const gone = documents.filter(d => !live.has(d.id.toString())).map(d => d.id);
+      if (gone.length) { await removeDerivedQuestions(userId(req), gone, id); doc = (await Interview.findById(id))!; }
+    }
     res.status(201).json(view(doc));
   } catch (err) { next(err); }
 });
@@ -181,11 +195,12 @@ router.post('/:id/answer', aiLimit, async (req, res, next) => {
       ? Math.max(0, Math.round((answeredAt.getTime() - doc.questionStartedAt.getTime() - pausedMs) / 1000)) : undefined;
     const turn = { question: doc.currentQuestion, answer: parsed.data.answer, topic: doc.currentTopic,
       answeredAt, submissionId: parsed.data.submissionId, questionIndex: parsed.data.questionIndex,
-      questionId: doc.currentQuestionId, questionGeneration: doc.currentQuestionGeneration,
+      questionId: doc.currentQuestionId, questionGeneration: doc.currentQuestionGeneration, grounding: doc.currentQuestionGrounding,
       elapsedSeconds, pausedSeconds: doc.questionStartedAt ? Math.round(pausedMs / 1000) : undefined,
       overTime: doc.timeLimitSeconds !== undefined && elapsedSeconds !== undefined ? elapsedSeconds > doc.timeLimitSeconds : undefined };
+    // Matching the question copied above rejects the answer if a document deletion just removed it.
     const updated = await Interview.findOneAndUpdate(
-      { _id: doc._id, userId: userId(req), status: 'in_progress',
+      { _id: doc._id, userId: userId(req), status: 'in_progress', currentQuestion: doc.currentQuestion,
         $or: [{ processingState: 'ready' }, { processingState: { $exists: false } }],
         [`turns.${parsed.data.questionIndex}`]: { $exists: false } },
       { $push: { turns: turn },

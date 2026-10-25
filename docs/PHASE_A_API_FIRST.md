@@ -32,7 +32,7 @@ change. It does not claim the full Phase A exit gate is complete.
 | A2 provider boundary | OpenAI + compatible adapters, independent model slots, schema validation, timeout, no hidden retries, provenance | Implemented; tested with mocked Responses and a real local HTTP gateway |
 | A4 scorecard foundation | Technical/Behavioral/HR rubric snapshots, 0–5 ratings, exact quote checks, offsets, insufficient evidence, result highlighting | Implemented; automated contract and browser checks |
 | A1 account/privacy | Revocable sessions, password recovery, verified email, export/deletion, clear provider disclosure and consent | Account flows and versioned provider consent/disclosure implemented/tested; live application email remains disabled |
-| A1 operations | Backups + restore drill, monitoring, shared auth limiter, infrastructure as code | Shared auth limiter, hourly snapshots/restore drill and monitoring policies implemented. Terraform for staging written with import blocks and safety guards, validated offline and in CI; adoption against the live project needs the owner's credentials ([INFRASTRUCTURE_AS_CODE.md](INFRASTRUCTURE_AS_CODE.md)); single VM remains staging |
+| A1 operations | Backups + restore drill, monitoring, shared auth limiter, infrastructure as code | Shared auth limiter, hourly snapshots/restore drill and monitoring policies implemented. Terraform for staging written with import blocks and safety guards, validated offline and in CI, and adopted into private remote state with 29 imports and zero resource changes ([INFRASTRUCTURE_AS_CODE.md](INFRASTRUCTURE_AS_CODE.md)); single VM remains staging |
 | A2 metering + A3 API bake-off | Persist attempts and billable usage including rejected outputs; latency/cost report; assess API providers on reviewed examples | Attempt ledger, failed-output token tracking and account summary implemented; versioned cost estimates, scoped invoice reconciliation and repeatable comparison tooling implemented ([USAGE_COST_AND_COMPARISON.md](USAGE_COST_AND_COMPARISON.md)); actual invoice validation and reviewed live bake-off pending |
 | A4 expanded coach | Challenge/re-review workflow, grounded rewrites, repeat-aware curated bank and timed rounds | Repeat-aware, difficulty-tagged 108-question practice bank implemented and tested ([QUESTION_BANK.md](QUESTION_BANK.md)); new questions await expert review. Score challenges implemented and tested as a second AI review ([SCORE_CHALLENGES.md](SCORE_CHALLENGES.md)). Grounded rewrites implemented and tested with quote-verified sentences and bracketed prompts ([ANSWER_REWRITES.md](ANSWER_REWRITES.md)). Timed rounds implemented and tested with a server-side clock, soft limits and pause ([TIMED_ROUNDS.md](TIMED_ROUNDS.md)). All A4 slices built; do not claim human review exists yet |
 | A5 evaluator calibration | Rater guide, licensed/consented dataset, double ratings, agreement and unsupported-claim audit | Tooling implemented and tested: rater guide, blind sheets, AI judge run, evidence audit, agreement report with gate verdicts, 24-item synthetic starter set ([CALIBRATION.md](CALIBRATION.md)). No human ratings collected yet; scores remain explicitly uncalibrated |
@@ -40,7 +40,9 @@ change. It does not claim the full Phase A exit gate is complete.
 After Phase A: B adds turn-based voice and transcript correction before realtime
 voice, resume/JD grounding and Hindi/Hinglish. B1 turn-based voice and read-aloud are
 implemented and tested ([VOICE_ANSWERS.md](VOICE_ANSWERS.md)); transcription accuracy
-is not yet measured. C adds isolated coding, system design,
+is not yet measured. B3 v1 resume/JD grounding (pasted text, verified source lines, complete
+deletion of derived questions) is implemented and tested ([RESUME_JD_GROUNDING.md](RESUME_JD_GROUNDING.md));
+question relevance is not yet rated. C adds isolated coding, system design,
 project defense and adaptive practice; training is conditional. D adds campus tools,
 billing and an optional offline client. E covers scale and research after usage
 justifies it. Employer assessment remains a separate, reviewed product decision.
@@ -152,8 +154,9 @@ Next sequence:
    resource changes, and a fresh post-adoption plan with no changes. State is private
    and versioned. See [INFRASTRUCTURE_AS_CODE.md](INFRASTRUCTURE_AS_CODE.md).
 4. Measure B1 transcription quality and latency on consented Indian English and
-   Hinglish examples before progressing to real-time B2 voice. Resume/JD grounding
-   remains a later B milestone with explicit ownership and deletion controls.
+   Hinglish examples before progressing to real-time B2 voice. B3 v1 resume/JD grounding
+   is implemented; rate tailored-question relevance (B3 gate: at least 80% relevant)
+   with the A5 rater process before claiming it.
 
 Application email stays disabled. No paid provider was enabled during this review.
 The existing backup failure and three-hour freshness policies were verified enabled;

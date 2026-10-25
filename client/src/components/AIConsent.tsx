@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-interface Disclosure {version:string;provider:string;endpoint:string;interviewerModel:string;judgeModel:string;description:string;retention:string;withdrawal:string;transcriptionModel?:string;voice?:string}
+interface Disclosure {version:string;provider:string;endpoint:string;interviewerModel:string;judgeModel:string;description:string;retention:string;withdrawal:string;transcriptionModel?:string;voice?:string;documents?:string}
 interface Consent {disclosure:Disclosure|null;accepted:boolean;hasGrant:boolean}
 export function AIConsent({onChange}:{onChange?:(ready:boolean, aiAvailable:boolean)=>void}) {
   const [data,setData]=useState<Consent>();const [checked,setChecked]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState('');
@@ -12,7 +12,7 @@ export function AIConsent({onChange}:{onChange?:(ready:boolean, aiAvailable:bool
     {!data?<p>Loading provider details…</p>:<>{data.disclosure?<>
       <p><strong>{data.disclosure.provider}</strong> · {data.disclosure.endpoint}</p>
       <p>Question model: {data.disclosure.interviewerModel}. Feedback model: {data.disclosure.judgeModel}.{data.disclosure.transcriptionModel&&` Transcription model: ${data.disclosure.transcriptionModel}.`}</p>
-      <p>{data.disclosure.description}</p>{data.disclosure.voice&&<p>{data.disclosure.voice}</p>}<p>{data.disclosure.retention}</p><p>{data.disclosure.withdrawal}</p>
+      <p>{data.disclosure.description}</p>{data.disclosure.documents&&<p>{data.disclosure.documents}</p>}{data.disclosure.voice&&<p>{data.disclosure.voice}</p>}<p>{data.disclosure.retention}</p><p>{data.disclosure.withdrawal}</p>
       {data.accepted?<p role="status">Permission granted for this provider configuration.</p>:<>
         <label className="consent-check"><input type="checkbox" checked={checked} onChange={e=>setChecked(e.target.checked)}/> I agree to send my interview content to this provider for AI coaching.</label>
         <button type="button" className="button" disabled={!checked||busy} onClick={()=>save(true)}>Allow AI processing</button></>}

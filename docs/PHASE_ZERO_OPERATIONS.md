@@ -23,6 +23,7 @@ Failed sign-out leaves the local session visible until the server confirms logou
 | INTERVIEW_WRITES_PER_15_MIN | 40 | Authenticated create/answer/retry requests, including invalid/replayed requests |
 | INTERVIEWS_PER_DAY | 20 | Valid interview-start attempts, including downstream generation failures |
 | AI_CALLS_PER_DAY | 100 | Initial AI questions and each worker AI attempt, including provider errors |
+| AUTH_REQUESTS_PER_15_MIN | 20 | Requests to each sign-in, registration, recovery and verification route, per hashed client IP |
 
 MongoDB counters are per account and fixed time window, shared across processes.
 Daily windows reset at 00:00 UTC (05:30 India Standard Time). The 15-minute windows

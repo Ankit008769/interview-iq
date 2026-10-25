@@ -9,10 +9,11 @@ export function aiDisclosure() {
   if (config.provider === 'practice') return null;
   const endpoint = config.provider === 'openai' ? 'https://api.openai.com' : new URL(config.baseURL!).origin;
   const value = {
-    policy: '2026-10-24.v1', provider: config.provider === 'openai' ? 'OpenAI' : (process.env.LLM_PROVIDER_NAME || 'Configured AI gateway'), endpoint,
+    policy: '2026-10-25.v2', provider: config.provider === 'openai' ? 'OpenAI' : (process.env.LLM_PROVIDER_NAME || 'Configured AI gateway'), endpoint,
     interviewerModel: process.env.INTERVIEWER_MODEL || process.env.AI_MODEL || 'gpt-4o-mini',
     judgeModel: process.env.JUDGE_MODEL || process.env.AI_MODEL || 'gpt-4o-mini',
     description: 'Your role, topic, interview questions and full saved answers are sent to this provider to generate follow-up questions and coaching feedback. Avoid entering secrets or sensitive personal information.',
+    documents: 'If you choose a resume or job description for an AI interview, its full text is also sent to this provider to tailor your questions. Remove phone numbers, addresses and anything else you do not want to share before saving it.',
     retention: 'Provider processing and retention follow its terms. India-only processing, offline operation and zero retention are not guaranteed. Interview IQ retains your saved interviews until deletion.',
     withdrawal: 'You can withdraw permission in Account. This stops future requests, including queued work; it cannot recall data already sent or cancel an in-flight request. Practice mode sends no content to an AI provider.',
     // Added only when voice is enabled, so enabling it asks everyone to review the change.

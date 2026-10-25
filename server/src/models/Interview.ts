@@ -6,6 +6,12 @@ import type { rubricFor } from '../services/rubrics.js';
 export type InterviewType = 'Technical' | 'Behavioral' | 'HR';
 export type InterviewLevel = 'Beginner' | 'Intermediate' | 'Advanced';
 export type InterviewStatus = 'in_progress' | 'completed';
+// Which of the candidate's documents a question was generated from, and the passage it is based on when
+// that passage was found verbatim. Deleting a document removes every question that lists it.
+export type QuestionGrounding = {
+  documentIds: mongoose.Types.ObjectId[];
+  source?: { documentId: mongoose.Types.ObjectId; kind: 'resume' | 'job_description'; quote: string; start: number; end: number };
+};
 export type AnswerTurn = {
   submissionId?: string;
   questionIndex?: number;
@@ -15,6 +21,7 @@ export type AnswerTurn = {
   topic: string;
   answeredAt: Date;
   questionGeneration?: GenerationMetadata;
+  grounding?: QuestionGrounding;
   elapsedSeconds?: number;
   pausedSeconds?: number;
   overTime?: boolean;
@@ -74,6 +81,8 @@ export interface IInterview {
   currentTopic: string;
   currentQuestionId?: string;
   currentQuestionGeneration?: GenerationMetadata;
+  currentQuestionGrounding?: QuestionGrounding;
+  documentIds: mongoose.Types.ObjectId[];
   timeLimitSeconds?: number;
   questionStartedAt?: Date;
   pausedAt?: Date;
@@ -120,6 +129,12 @@ const rewriteSchema = new Schema<AnswerRewrite>({
 const rubricSchema = new Schema({ version: String, type: String, scale: String, anchors: [String],
   criteria: [new Schema({ id: String, label: String, guidance: String }, { _id: false })],
 }, { _id: false });
+const groundingSchema = new Schema<QuestionGrounding>({
+  documentIds: { type: [Schema.Types.ObjectId], default: [] },
+  source: { type: new Schema({ documentId: { type: Schema.Types.ObjectId, required: true },
+    kind: { type: String, enum: ['resume', 'job_description'], required: true },
+    quote: { type: String, required: true }, start: Number, end: Number }, { _id: false }) },
+}, { _id: false });
 const turnSchema = new Schema<AnswerTurn>({
   submissionId: { type: String },
   questionIndex: { type: Number, min: 0 },
@@ -129,6 +144,7 @@ const turnSchema = new Schema<AnswerTurn>({
   topic: { type: String, required: true },
   answeredAt: { type: Date, required: true, default: Date.now },
   questionGeneration: { type: generationSchema },
+  grounding: { type: groundingSchema },
   elapsedSeconds: { type: Number, min: 0 },
   pausedSeconds: { type: Number, min: 0 },
   overTime: { type: Boolean },
@@ -165,6 +181,8 @@ const interviewSchema = new Schema<IInterview>({
   currentTopic: { type: String, required: true },
   currentQuestionId: { type: String },
   currentQuestionGeneration: { type: generationSchema },
+  currentQuestionGrounding: { type: groundingSchema },
+  documentIds: { type: [Schema.Types.ObjectId], default: [] },
   timeLimitSeconds: { type: Number, enum: [120, 180, 300] },
   questionStartedAt: { type: Date },
   pausedAt: { type: Date },

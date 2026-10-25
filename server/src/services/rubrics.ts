@@ -5,6 +5,7 @@ export const JUDGE_PROMPT_VERSION = 'evidence-judge.v1';
 export const CHALLENGE_PROMPT_VERSION = 'challenge-review.v1';
 export const REWRITE_PROMPT_VERSION = 'answer-rewrite.v1';
 export const QUESTION_PROMPT_VERSION = 'interviewer.v2';
+export const GROUNDED_QUESTION_PROMPT_VERSION = 'interviewer-grounded.v1';
 export const anchors = [
   'Explicit evidence is incorrect, off-topic or contradicts this criterion.',
   'Evidence shows a major misconception or a largely ineffective approach.',

@@ -5,6 +5,7 @@ import { api, type Interview } from '../lib/api';
 import { LoadingScreen } from '../components/Layout';
 import { EvidenceReview, RubricGuide } from '../components/EvidenceReview';
 import { TurnTiming, clock } from '../components/Timing';
+import { QuestionSource } from '../components/Grounding';
 export function Results() {
   const {id}=useParams();const [interview,setInterview]=useState<Interview|null>(null);const [error,setError]=useState('');
   useEffect(()=>{api<{interview:Interview}>(`/interviews/${id}`).then(d=>setInterview(d.interview)).catch(e=>setError(e.message));},[id]);
@@ -36,7 +37,7 @@ export function Results() {
     return evaluated ? <EvidenceReview key={i} turn={turn} index={i} criteria={evaluated.criteria}
       challenges={challenges.filter(c=>c.questionIndex===i)} canChallenge={challenges.length<3}
       onChallenge={(criterionId,reason,submissionId)=>requestChallenge(i,criterionId,reason,submissionId)}
-      rewrite={interview.rewrites?.find(r=>r.questionIndex===i)} onRewrite={()=>requestRewrite(i)} limit={limit}/> : <div className="card review-turn" key={i}><span className="question-label"><BrainCircuit size={16}/> QUESTION {i+1} · {turn.topic}</span><h4>{turn.question}</h4><TurnTiming turn={turn} limit={limit}/><div className="review-answer">{turn.answer}</div></div>;
+      rewrite={interview.rewrites?.find(r=>r.questionIndex===i)} onRewrite={()=>requestRewrite(i)} limit={limit}/> : <div className="card review-turn" key={i}><span className="question-label"><BrainCircuit size={16}/> QUESTION {i+1} · {turn.topic}</span><h4>{turn.question}</h4><QuestionSource grounding={turn.grounding}/><TurnTiming turn={turn} limit={limit}/><div className="review-answer">{turn.answer}</div></div>;
   })}</div>
   {feedback?.generation && <details className="card rubric-guide"><summary>How this review was generated</summary><p>Provider: {feedback.generation.provider} · Model: {feedback.generation.model} · Prompt: {feedback.generation.promptVersion}</p><p>The rubric and generation versions are saved with this report. Model updates do not rewrite past ratings. A rating you challenge can change after a second AI review; its original is kept in your interview record.</p></details>}
   </div>;
