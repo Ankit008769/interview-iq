@@ -147,7 +147,13 @@ the faster but out-of-India alternative.
 - Terraform declares the sidecar (`model_image`, `model_cpu`, `model_memory`,
   `app_container_name`); releases still own the app image and environment.
 
-**Current (25 October 2026, 10:50 UTC):** revision `interview-iq-languages-2a4cc85` serves 100% of
+**Current (25 October 2026, 11:32 UTC):** revision `interview-iq-voice-9ae0c55` serves 100% of traffic:
+app `interview-iq:9ae0c55` (`sha256:98d7984dbf0039828f0df7b96e5f7fef49780d987ea58c21a3674f9d3c791933`), Ollama `interview-iq-ollama:0.40.11-qwen3.5-4b-v2` (6 vCPU) and
+speech-to-text `interview-iq-whisper:1.2.1-small` (`sha256:3f2237cdb419d9987bfc2834a3487c543554031a343f0775d9603c53eb953310`, 1 vCPU); `/api/health` reports model and voice
+ready. Voice answers are on (see [VOICE_ANSWERS.md](VOICE_ANSWERS.md)). Rollback revision
+`interview-iq-languages-2a4cc85`. Releases now use `deploy/prepare-release.mjs` (candidate, then restore).
+
+**Previous (10:50 UTC):** revision `interview-iq-languages-2a4cc85` served 100% of
 traffic with app image `interview-iq:2a4cc85`
 (`sha256:aef7d5fa89266ff129e2c345a950363a5cc8d3a6ca9bb4df110f5d0646e2745b`: adds Hindi and Hinglish
 interviews, see [LANGUAGES.md](LANGUAGES.md)); rollback revision `interview-iq-feedback-faa10f2`.
