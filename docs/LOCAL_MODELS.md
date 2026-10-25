@@ -105,6 +105,27 @@ the run stopped at 13/24; a repeat of the same answer was valid. That led to the
 constrained schema and temperature 0 above, and to the calibration runner re-asking up to
 three times and then skipping (and reporting) an item rather than stopping.
 
+## Automated check results (25 October 2026)
+
+24 synthetic items (8 Technical, 8 Behavioral, 8 HR; 7 strong, 8 adequate, 6 weak,
+3 off-topic), local CPU runs: Qwen3.5 4B 25 minutes, Gemma 4 E2B 19 minutes, no invalid
+scorecards after the constrained schema.
+
+| Gate | Qwen3.5 4B | Gemma 4 E2B | Threshold | Verdict |
+|---|---|---|---|---|
+| Pairwise ordering of known-quality answers | 0.83 | 0.92 | ≥ 0.80 | pass, pass |
+| Spearman with intended quality | 0.77 | 0.89 | ≥ 0.60 | pass, pass |
+| Agreement between the judges, item scores ICC(A,1) | 0.88 | | ≥ 0.60 | pass |
+
+Mean item score (0–5) by intended quality: Qwen strong 4.11, adequate 2.42, weak 0.17,
+off-topic 0.00; Gemma 4.36, 2.22, 0.17, 0.00.
+
+**Caveat:** the judges agree on how good an answer is overall, but not on individual
+criteria. Where both rated the same criterion (45 cases) the quadratic-weighted kappa is
+−0.01, and in 18 more cases only one of them found enough evidence. Per-criterion scores
+from a 4B model should be read as rough coaching signals; the overall score is the more
+reliable number. Synthetic answers are also easier than real ones.
+
 ## Training later
 
 This laptop (Ryzen 5 7530U, 15 GB RAM, integrated Radeon graphics, no NVIDIA GPU) can
