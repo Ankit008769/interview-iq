@@ -147,7 +147,12 @@ the faster but out-of-India alternative.
 - Terraform declares the sidecar (`model_image`, `model_cpu`, `model_memory`,
   `app_container_name`); releases still own the app image and environment.
 
-**Current (25 October 2026, 11:58 UTC):** revision `interview-iq-visibility-5926cbd` serves 100% of traffic
+**Current (25 October 2026, 14:36 UTC):** revision `interview-iq-learning-1d439c7` serves 100% of traffic
+with app `interview-iq:1d439c7` (`sha256:dbba319c7e5ae67f47e6e58efd08e9e3dbcb58a265e19027499331e15df8d31b`: adaptive learning, daily drills, study plans and
+interview styles, see [ADAPTIVE_LEARNING.md](ADAPTIVE_LEARNING.md)) and the same Ollama and speech containers;
+rollback `interview-iq-visibility-5926cbd`.
+
+**Previous (11:58 UTC):** revision `interview-iq-visibility-5926cbd` served 100% of traffic
 with app `interview-iq:5926cbd` (`sha256:45d7117bca83ca3b9e0a83cbf252a76fe59bbb0afaa0cf52c8f6b6cc8c02e683`: dashboard "New in AI interviews" panel, AI on by default in setup,
 clearer permission prompts) and the same Ollama and speech containers; rollback `interview-iq-voice-9ae0c55`.
 
