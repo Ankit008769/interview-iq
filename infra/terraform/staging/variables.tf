@@ -201,3 +201,34 @@ variable "public_invoker" {
   type        = bool
   default     = false
 }
+
+variable "runner_service_name" {
+  type    = string
+  default = "interview-iq-runner"
+}
+
+variable "runner_image" {
+  description = "Code runner image built and tested by runner/cloudbuild.yaml."
+  type        = string
+  default     = "asia-south1-docker.pkg.dev/project-12b39f1f-9d49-456e-957/cloud-run-source-deploy/interview-iq-runner:v1"
+}
+
+variable "runner_service_account_id" {
+  type    = string
+  default = "interviewiq-runner"
+}
+
+variable "runner_network_name" {
+  type    = string
+  default = "interviewiq-runner-net"
+}
+
+variable "runner_subnet_name" {
+  type    = string
+  default = "interviewiq-runner-subnet"
+}
+
+variable "runner_subnet_cidr" {
+  type    = string
+  default = "10.80.0.0/26"
+}

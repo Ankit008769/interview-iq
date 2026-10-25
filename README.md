@@ -1,6 +1,6 @@
 # InterviewIQ — AI Mock Interview Coach (MERN starter)
 
-A portfolio-level MERN application for realistic, role-specific mock interviews. This repository contains a **working application scaffold** for signup, login, interview configuration, text-based question/answer sessions, feedback, dashboard and history. Questions can be read aloud, and AI interviews accept spoken answers that are transcribed for review when a transcription model is configured ([voice answers](docs/VOICE_ANSWERS.md)). AI interviews can be tailored to a pasted resume or job description, with the source line shown under each tailored question ([resume and JD grounding](docs/RESUME_JD_GROUNDING.md)). Voice answers can be transcribed on the server by a local Whisper model ([voice answers](docs/VOICE_ANSWERS.md)) and get optional pace and filler-word feedback, and behavioral answers can be checked for STAR structure; neither affects scores ([delivery and STAR](docs/DELIVERY_AND_STAR.md)). AI interviews can be held in English, Hindi or Hinglish (beta; [languages](docs/LANGUAGES.md)). A Learn page keeps an estimate and uncertainty for 20 skills, schedules spaced retests and picks one short drill a day, focused by an optional interview date; setup offers product, IT services and startup interview styles ([adaptive learning](docs/ADAPTIVE_LEARNING.md)). Questions and scores can come from open models running locally through Ollama, with nothing sent to an outside AI company ([local models](docs/LOCAL_MODELS.md)). File uploads and real-time voice are *planned*, not implemented in this version.
+A portfolio-level MERN application for realistic, role-specific mock interviews. This repository contains a **working application scaffold** for signup, login, interview configuration, text-based question/answer sessions, feedback, dashboard and history. Questions can be read aloud, and AI interviews accept spoken answers that are transcribed for review when a transcription model is configured ([voice answers](docs/VOICE_ANSWERS.md)). AI interviews can be tailored to a pasted resume or job description, with the source line shown under each tailored question ([resume and JD grounding](docs/RESUME_JD_GROUNDING.md)). Voice answers can be transcribed on the server by a local Whisper model ([voice answers](docs/VOICE_ANSWERS.md)) and get optional pace and filler-word feedback, and behavioral answers can be checked for STAR structure; neither affects scores ([delivery and STAR](docs/DELIVERY_AND_STAR.md)). AI interviews can be held in English, Hindi or Hinglish (beta; [languages](docs/LANGUAGES.md)). A coding lab runs JavaScript, TypeScript, Python, Java, C++ and SQL solutions against hidden tests in a separate sandboxed runner, then the AI interviewer asks about the approach and reviews it; test results never come from the AI ([coding lab](docs/CODING_LAB.md)). A Learn page keeps an estimate and uncertainty for 20 skills, schedules spaced retests and picks one short drill a day, focused by an optional interview date; setup offers product, IT services and startup interview styles ([adaptive learning](docs/ADAPTIVE_LEARNING.md)). Questions and scores can come from open models running locally through Ollama, with nothing sent to an outside AI company ([local models](docs/LOCAL_MODELS.md)). File uploads and real-time voice are *planned*, not implemented in this version.
 
 ## Current flow
 
@@ -58,6 +58,8 @@ client/src/lib         Shared frontend API/types
 server/src/routes      HTTP API routes
 server/src/models      MongoDB schemas
 server/src/services    AI and practice question engine
+server/src/coding      Coding lab problems, language harnesses and grading
+runner                 Sandboxed code runner service (separate Cloud Run service)
 docs                   Next stages and architecture
 ```
 
@@ -81,6 +83,9 @@ docs                   Next stages and architecture
 | POST | `/api/interviews/:id/pause` · `/resume` | Stop or restart a timed question's clock (see [timed rounds](docs/TIMED_ROUNDS.md)) |
 | POST | `/api/interviews/:id/transcribe` | Transcribe one spoken answer for review; the recording is not stored (see [voice answers](docs/VOICE_ANSWERS.md)) |
 | POST | `/api/interviews/:id/star` | Check which STAR parts one behavioral answer states, quoting the answer (see [delivery and STAR](docs/DELIVERY_AND_STAR.md)) |
+| GET | `/api/coding/problems` · `/api/coding/problems/:id` | Coding problems with progress, or one problem's statement, examples and starters (see [coding lab](docs/CODING_LAB.md)) |
+| POST | `/api/coding/problems/:id/runs` | Run code against the examples (`mode: run`) or all hidden tests (`mode: submit`) in the sandboxed runner |
+| POST | `/api/coding/runs/:id/follow-up` · `/answer` | The AI interviewer's follow-up question for a submission, then a review of the explanation and code |
 | GET | `/api/learning/overview` | Skill estimates, today's drill, streak, retests and study plan (see [adaptive learning](docs/ADAPTIVE_LEARNING.md)) |
 | GET | `/api/learning/drill?skillId=` | A drill for one chosen skill |
 | PUT · DELETE | `/api/learning/plan` | Save or remove the study plan |

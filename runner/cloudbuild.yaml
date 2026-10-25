@@ -1,0 +1,33 @@
+# Builds the code runner image and pushes it only if the sandbox escape suite and the coding-lab verification
+# (every problem's reference solution, solutions in all five languages, broken submissions) pass against it.
+#   gcloud builds submit . --config=runner/cloudbuild.yaml --substitutions=_IMAGE=REGION-docker.pkg.dev/PROJECT/REPO/interview-iq-runner:TAG
+steps:
+- id: build
+  name: gcr.io/cloud-builders/docker
+  args: [build, --network, cloudbuild, -t, '${_IMAGE}', runner]
+- id: escape-suite
+  name: gcr.io/cloud-builders/docker
+  args: [run, --rm, '${_IMAGE}', node, --test, --test-concurrency=1, test/escape.test.mjs]
+- id: start-runner
+  name: gcr.io/cloud-builders/docker
+  args: [run, -d, --name, iq-runner, --network, cloudbuild, '${_IMAGE}']
+- id: verify-coding-lab
+  name: node:24-bookworm-slim
+  dir: server
+  entrypoint: bash
+  args:
+  - -c
+  - |
+    set -e
+    npm ci --ignore-scripts --no-audit --no-fund
+    for i in $(seq 1 60); do node -e "fetch('http://iq-runner:8080/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))" && break; sleep 2; done
+    node -e "fetch('http://iq-runner:8080/health').then(r => r.json()).then(j => console.log(JSON.stringify(j)))"
+    RUNNER_URL=http://iq-runner:8080 npx tsx src/scripts/codingVerify.ts
+- id: runner-log
+  name: gcr.io/cloud-builders/docker
+  args: [logs, iq-runner]
+images: ['${_IMAGE}']
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+timeout: 2400s

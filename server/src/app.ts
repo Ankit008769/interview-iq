@@ -12,6 +12,7 @@ import accountRoutes from './routes/account.js';
 import interviewRoutes from './routes/interviews.js';
 import documentRoutes from './routes/documents.js';
 import learningRoutes from './routes/learning.js';
+import codingRoutes from './routes/coding.js';
 import { QuotaError } from './services/quotas.js';
 import { interviewMode } from './services/ai.js';
 import { localModelStatus, localVoiceStatus } from './services/modelProvider.js';
@@ -48,6 +49,7 @@ app.use('/api/account', accountRoutes);
 app.use('/api/interviews', interviewRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/learning', learningRoutes);
+app.use('/api/coding', codingRoutes);
 if (process.env.SERVE_CLIENT === 'true') {
   const clientDist = fileURLToPath(new URL('../../client/dist/', import.meta.url));
   app.use(express.static(clientDist));

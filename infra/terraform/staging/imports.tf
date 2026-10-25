@@ -107,3 +107,34 @@ import {
   to       = google_cloud_run_v2_service_iam_member.public[0]
   id       = "projects/${local.p}/locations/${var.region}/services/${var.service_name} roles/run.invoker ${each.key}"
 }
+
+# Code runner (C2), created with gcloud on 25 October 2026; see docs/CODING_LAB.md.
+import {
+  to = google_service_account.runner
+  id = "projects/${local.p}/serviceAccounts/${var.runner_service_account_id}@${local.p}.iam.gserviceaccount.com"
+}
+
+import {
+  to = google_compute_network.runner
+  id = "projects/${local.p}/global/networks/${var.runner_network_name}"
+}
+
+import {
+  to = google_compute_subnetwork.runner
+  id = "projects/${local.p}/regions/${var.region}/subnetworks/${var.runner_subnet_name}"
+}
+
+import {
+  to = google_compute_firewall.runner_deny_egress
+  id = "projects/${local.p}/global/firewalls/interviewiq-runner-deny-egress"
+}
+
+import {
+  to = google_cloud_run_v2_service.runner
+  id = "projects/${local.p}/locations/${var.region}/services/${var.runner_service_name}"
+}
+
+import {
+  to = google_cloud_run_v2_service_iam_member.runner_app_invoker
+  id = "projects/${local.p}/locations/${var.region}/services/${var.runner_service_name} roles/run.invoker serviceAccount:${var.app_service_account_id}@${local.p}.iam.gserviceaccount.com"
+}

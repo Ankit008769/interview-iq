@@ -7,6 +7,8 @@ export const REWRITE_PROMPT_VERSION = 'answer-rewrite.v1';
 export const QUESTION_PROMPT_VERSION = 'interviewer.v3';
 export const GROUNDED_QUESTION_PROMPT_VERSION = 'interviewer-grounded.v2';
 export const STAR_PROMPT_VERSION = 'star-coverage.v1';
+export const CODING_FOLLOWUP_PROMPT_VERSION = 'coding-followup.v1';
+export const CODING_REVIEW_PROMPT_VERSION = 'coding-review.v1';
 export const anchors = [
   'Explicit evidence is incorrect, off-topic or contradicts this criterion.',
   'Evidence shows a major misconception or a largely ineffective approach.',
@@ -41,3 +43,13 @@ export function rubricFor(type: InterviewType) {
   return { version: RUBRIC_VERSION, type, scale: '0–5; insufficient evidence is unscored', anchors,
     criteria: definitions[type].map(([id, label, guidance]) => ({ id, label, guidance })) };
 }
+
+// Coding lab (C2): test results come from the sandbox and are never rated by the model; these criteria cover
+// what tests cannot show. Evidence quotes must come from the candidate's code or explanation.
+export const CODING_RUBRIC = { version: '2026-10-25.coding.v1', scale: '0–5; insufficient evidence is unscored', anchors,
+  criteria: [
+    { id: 'approach', label: 'Algorithmic approach', guidance: 'Is the chosen algorithm and data structure suitable for the problem and its constraints, judged from the code and explanation?' },
+    { id: 'complexity', label: 'Complexity reasoning', guidance: 'Does the explanation state time and space complexity correctly for this code, and connect it to the input size?' },
+    { id: 'quality', label: 'Code quality', guidance: 'Is the code readable and organized: clear names, no needless duplication, edge cases handled deliberately?' },
+    { id: 'explanation', label: 'Explanation', guidance: 'Does the explanation answer the interviewer question clearly and accurately describe what the code does?' },
+  ] };

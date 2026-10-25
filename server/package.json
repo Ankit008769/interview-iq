@@ -12,7 +12,8 @@
     "test:e2e": "playwright test",
     "calibration": "tsx src/scripts/calibration.ts",
     "local-check": "tsx src/scripts/localCheck.ts",
-    "comparison": "tsx src/scripts/providerComparison.ts"
+    "comparison": "tsx src/scripts/providerComparison.ts",
+    "coding:verify": "tsx src/scripts/codingVerify.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^8.4.0",

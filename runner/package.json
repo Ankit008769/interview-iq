@@ -1,0 +1,13 @@
+{
+  "name": "interviewiq-runner",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Sandboxed code runner for the InterviewIQ coding lab",
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node server.mjs",
+    "local": "node --env-file-if-exists=.env.local server.mjs",
+    "test": "node --test test/escape.test.mjs"
+  }
+}

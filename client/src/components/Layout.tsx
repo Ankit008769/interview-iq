@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { ArrowUpRight, BrainCircuit, FileText, GraduationCap, History, LayoutDashboard, LogOut, PlusCircle, Sparkles, UserRound } from 'lucide-react';
+import { ArrowUpRight, BrainCircuit, Code2, FileText, GraduationCap, History, LayoutDashboard, LogOut, PlusCircle, Sparkles, UserRound } from 'lucide-react';
 import { useAuth } from './AuthProvider';
 const nav = [
   { to: '/dashboard', label: 'Overview', Icon: LayoutDashboard },
   { to: '/learn', label: 'Learn', Icon: GraduationCap },
+  { to: '/coding', label: 'Coding', Icon: Code2 },
   { to: '/interview/new', label: 'New interview', Icon: PlusCircle },
   { to: '/documents', label: 'Resume & JD', Icon: FileText },
   { to: '/account', label: 'Account', Icon: UserRound },

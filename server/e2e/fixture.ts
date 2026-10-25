@@ -13,6 +13,10 @@ import { startInterviewWorker } from '../src/services/interviewJobs.js';
 import { rubricFor } from '../src/services/rubrics.js';
 import { verifyEvidence, summarizeEvidence } from '../src/services/evidence.js';
 import { createServer } from 'node:http';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 process.env.JWT_SECRET = 'browser-test-only-secret-longer-than-thirty-two-characters';
 process.env.CLIENT_ORIGIN = 'http://127.0.0.1:5101';
@@ -24,6 +28,25 @@ process.env.AUTH_REQUESTS_PER_15_MIN = '200';
 process.env.MONGOMS_VERSION = '8.2.6';
 process.env.MONGOMS_DOWNLOAD_DIR = fileURLToPath(new URL('../node_modules/.cache/mongodb-memory-server', import.meta.url));
 delete process.env.OPENAI_API_KEY;
+// Test-only stand-in for the code runner: runs JavaScript and TypeScript with Node on loopback, without a sandbox.
+const fakeRunner = createServer(async (req, res) => {
+  let body = ''; for await (const chunk of req) body += chunk;
+  res.setHeader('content-type', 'application/json');
+  if (req.url === '/health') { res.end(JSON.stringify({ ok: true, languages: { javascript: 'node', typescript: 'node', python: null, java: null, cpp: null } })); return; }
+  const input = JSON.parse(body);
+  const dir = mkdtempSync(join(tmpdir(), 'iq-e2e-runner-'));
+  try {
+    const file = join(dir, input.language === 'typescript' ? 'main.ts' : 'main.js');
+    writeFileSync(file, input.source);
+    const started = Date.now();
+    const result = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', file], { input: input.stdin, encoding: 'utf8', timeout: input.timeLimitMs });
+    res.end(JSON.stringify({ status: result.error ? 'timeout' : result.status === 0 ? 'ok' : 'runtime_error', runner: { version: 'e2e' },
+      run: { ms: Date.now() - started, exitCode: result.status, signal: result.signal, stdout: result.stdout ?? '', stdoutTruncated: false, stderr: result.stderr ?? '', stderrTruncated: false } }));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+await new Promise<void>(resolve => fakeRunner.listen(0, '127.0.0.1', resolve));
+process.env.RUNNER_URL = `http://127.0.0.1:${(fakeRunner.address() as AddressInfo).port}`;
+process.env.RUNNER_AUTH = 'none';
 const { app } = await import('../src/app.js');
 const mongo = await MongoMemoryServer.create();
 await mongoose.connect(mongo.getUri());
@@ -42,7 +65,13 @@ const gateway = createServer(async (req, res) => {
   res.setHeader('content-type', 'application/json');
   if (req.url?.endsWith('/audio/transcriptions')) { res.end(JSON.stringify({ text: 'Arrays give constant-time indexed access.' })); return; }
   const input = JSON.parse(JSON.parse(body).messages[1].content);
-  const value = input.starParts ? { parts: [
+  const value = input.candidateExplanation ? { summary: 'A hash map gives a one-pass solution; the complexity claim is right.', criteria: [
+      { criterionId: 'approach', score: 5, quote: 'new Map()', rationale: 'A hash map suits the lookups.', improvement: null },
+      { criterionId: 'complexity', score: 4, quote: 'O(n) time', rationale: 'The time complexity is stated correctly.', improvement: 'Also state the O(n) space.' },
+      { criterionId: 'quality', score: 4, quote: 'seen.set(nums[i], i);', rationale: 'Short and readable.', improvement: 'Name the complement variable.' },
+      { criterionId: 'explanation', score: null, quote: null, rationale: '', improvement: null }] }
+    : input.testResults ? { question: 'Your solution passed. What are its time and space complexity, and why?' }
+    : input.starParts ? { parts: [
       { part: 'situation', quote: 'our demo server crashed a day before the review', tip: null },
       { part: 'task', quote: 'I had to restore it before the panel met', tip: null },
       { part: 'action', quote: 'I rebuilt it from backups', tip: null },
@@ -140,6 +169,7 @@ const close = async () => {
   closing = true;
   server.close();
   gateway.close();
+  fakeRunner.close();
   await stopWorker?.();
   await mongoose.disconnect();
   await mongo.stop();

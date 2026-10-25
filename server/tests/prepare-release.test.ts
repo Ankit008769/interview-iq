@@ -56,3 +56,12 @@ it('restores the single-instance cap without a new revision and refuses unsafe i
   const odd = live(); odd.spec.template.spec.containers[1].resources.limits.cpu = '5';
   expect(() => candidate(odd, { revision: 'interview-iq-x' })).toThrow(/ollama asks for 5 vCPU/);
 });
+
+it('sets plain app environment variables for a release but never replaces a secret reference', () => {
+  const base = live();
+  base.spec.template.spec.containers[0].env.push({ name: 'JWT_SECRET', valueFrom: { secretKeyRef: { name: 'jwt', key: 'latest' } } } as any);
+  const { manifest } = candidate(base, { revision: 'interview-iq-coding-abc1234', env: { RUNNER_URL: 'https://runner.example', RUNNER_AUTH: 'google' } });
+  expect(manifest.spec.template.spec.containers[0].env).toEqual(expect.arrayContaining([{ name: 'RUNNER_URL', value: 'https://runner.example' }, { name: 'RUNNER_AUTH', value: 'google' }]));
+  expect(() => candidate(base, { revision: 'interview-iq-x', env: { JWT_SECRET: 'plain' } })).toThrow(/comes from a secret/);
+  expect(() => candidate(base, { revision: 'interview-iq-x', env: { 'bad-name': 'x' } })).toThrow(/Invalid environment variable name/);
+});

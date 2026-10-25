@@ -3,11 +3,11 @@
 // (gcloud run services describe interview-iq --region=asia-south1 --format=json > live.json):
 //
 //   candidate  --in live.json --out next.json --revision interview-iq-NAME-SHA [--app-image IMG --commit SHA]
-//              [--voice-image IMG] [--voice-model small]
+//              [--voice-image IMG] [--voice-model small] [--env KEY=VALUE]...
 //     New revision with no traffic, tagged "candidate", and the service maximum raised to 2 so it can start
 //     next to the serving revision (the service normally allows one instance). --voice-image adds or replaces
 //     the speech-to-text sidecar (deploy/whisper, 1 vCPU so Ollama keeps 6 within the 8 vCPU limit) and points
-//     the app at it.
+//     the app at it. --env sets a plain environment variable on the app (never one that holds a secret reference).
 //   restore    --in live.json --out next.json
 //     Same template (no new revision), service maximum back to 1.
 //
@@ -36,7 +36,7 @@ const setEnv = (container, name, value) => {
   container.env = [...(container.env ?? []).filter(e => e.name !== name), { name, value }];
 };
 
-export function candidate(live, { revision, appImage, commit, voiceImage, voiceModel = 'small' }) {
+export function candidate(live, { revision, appImage, commit, voiceImage, voiceModel = 'small', env = {} }) {
   if (!/^[a-z][a-z0-9-]{0,62}$/.test(revision ?? '') || !revision.startsWith(`${live.metadata.name}-`)) {
     throw new Error(`A valid --revision starting with ${live.metadata.name}- is required.`);
   }
@@ -51,6 +51,11 @@ export function candidate(live, { revision, appImage, commit, voiceImage, voiceM
   if (!app) throw new Error('Expected an "app" container (run deploy/add-model-sidecar.mjs first).');
   if (appImage) app.image = appImage;
   if (commit) setEnv(app, 'DEPLOYMENT_COMMIT', commit);
+  for (const [name, value] of Object.entries(env)) {
+    if (!/^[A-Z][A-Z0-9_]*$/.test(name)) throw new Error(`Invalid environment variable name: ${name}`);
+    if (app.env?.some(e => e.name === name && e.valueFrom)) throw new Error(`${name} comes from a secret; change it in Secret Manager instead.`);
+    setEnv(app, name, value);
+  }
   if (voiceImage) {
     template.spec.containers = [...containers.filter(c => c.name !== 'whisper'), {
       name: 'whisper', image: voiceImage,
@@ -81,11 +86,16 @@ export function restore(live) {
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const [mode, ...rest] = process.argv.slice(2);
   const args = new Map();
-  for (let i = 0; i < rest.length; i += 2) args.set(rest[i].replace(/^--/, ''), rest[i + 1]);
+  const env = {};
+  for (let i = 0; i < rest.length; i += 2) {
+    const key = rest[i].replace(/^--/, '');
+    if (key === 'env') { const at = rest[i + 1].indexOf('='); env[rest[i + 1].slice(0, at)] = rest[i + 1].slice(at + 1); }
+    else args.set(key, rest[i + 1]);
+  }
   const live = JSON.parse(readFileSync(args.get('in'), 'utf8'));
   const { manifest, serving } = mode === 'candidate'
     ? candidate(live, { revision: args.get('revision'), appImage: args.get('app-image'), commit: args.get('commit'),
-      voiceImage: args.get('voice-image'), voiceModel: args.get('voice-model') })
+      voiceImage: args.get('voice-image'), voiceModel: args.get('voice-model'), env })
     : mode === 'restore' ? restore(live) : (() => { throw new Error('Usage: prepare-release.mjs candidate|restore --in live.json --out next.json ...'); })();
   writeFileSync(args.get('out'), JSON.stringify(manifest, null, 2));
   console.log(`Wrote ${args.get('out')}.${serving ? ` Traffic stays on ${serving}; the new revision is tagged "candidate".` : ''}`);

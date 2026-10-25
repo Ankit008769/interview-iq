@@ -105,3 +105,22 @@ export async function api<T>(path: string, options: RequestInit & { timeoutMs?: 
   if (!response.ok) throw new ApiError(data?.error || `Request failed (${response.status}).`, response.status);
   return data;
 }
+// Coding lab (C2). Test results come from the sandboxed runner; the AI follow-up and review are separate.
+export type CodeLang = 'javascript' | 'typescript' | 'python' | 'java' | 'cpp' | 'sql';
+export type CodeVerdict = 'accepted' | 'wrong_answer' | 'runtime_error' | 'time_limit' | 'memory_limit' | 'output_limit' | 'compile_error' | 'runner_error';
+export interface CodingStatus { runner: { configured: boolean; ready: boolean; languages: Record<string, string | null> }; aiAvailable: boolean }
+export interface CodingProblemSummary { id: string; title: string; kind: 'algorithm' | 'debugging' | 'sql'; difficulty: Interview['difficulty']; topics: string[]; languages: CodeLang[]; submissions: number; solved: boolean }
+export interface CodingProblem {
+  id: string; title: string; kind: CodingProblemSummary['kind']; difficulty: Interview['difficulty']; topics: string[];
+  statement: string; constraints: string[]; languages: CodeLang[]; hiddenTests: number;
+  examples: { args: unknown[]; expected: unknown; explanation?: string }[];
+  signature?: { name: string; params: { name: string; type: string }[]; returns: string }; compare?: 'exact' | 'unordered' | 'unordered-nested';
+  schema?: string; columns?: string[]; ordered?: boolean;
+  starters: Partial<Record<CodeLang, string>>;
+}
+export interface CodeTest { index: number; visible: boolean; large: boolean; status: 'passed' | 'wrong_answer' | 'error' | 'not_run'; ms?: number; error?: string; actual?: unknown }
+export interface CodeRunSummary { id: string; language: CodeLang; mode: 'run' | 'submit'; verdict: CodeVerdict; passed: number; total: number; createdAt: string; followUp?: { review?: { createdAt: string } } }
+export interface CodeRun extends CodeRunSummary {
+  problemId: string; problemTitle?: string; source: string; tests: CodeTest[]; output: string; message?: string; runMs?: number; compileMs?: number;
+  followUp?: { question: string; askedAt: string; answer?: string; answeredAt?: string; review?: { criteria: CriterionRating[]; summary: string; createdAt: string } };
+}

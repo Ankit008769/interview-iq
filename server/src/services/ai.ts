@@ -17,7 +17,7 @@ const LANGUAGE_RULES: Record<Exclude<InterviewLanguage, 'en'>, string> = {
 };
 // Hindi and Hinglish interviews add one instruction to every prompt and mark the prompt version, so English prompts,
 // and the calibration measured with them, stay unchanged.
-function speak(language: InterviewLanguage | undefined, promptVersion: string, system: string) {
+export function speak(language: InterviewLanguage | undefined, promptVersion: string, system: string) {
   if (!language || language === 'en') return { promptVersion, system };
   return { promptVersion: `${promptVersion}+${language}`, system: `${system} ${LANGUAGE_RULES[language]}` };
 }
