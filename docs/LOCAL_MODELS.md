@@ -133,8 +133,11 @@ Chosen 25 October 2026: a **CPU sidecar** in the existing Cloud Run service in M
 the faster but out-of-India alternative.
 
 - `deploy/ollama/Dockerfile` builds Ollama 0.40.11 (pinned by digest) with
-  `qwen3.5:4b` baked in, a 16K context and the model kept loaded. It listens on
-  `127.0.0.1:11434` only, so nothing outside the instance can reach it.
+  `qwen3.5:4b` baked in, a 16K context and the model kept loaded. The app reaches it on
+  `127.0.0.1:11434`. It binds all interfaces inside its container because Cloud Run's
+  startup probe cannot reach a loopback-only server (the first rollout failed exactly that
+  way); sidecar ports are not exposed outside the instance, since only the app container
+  receives requests.
 - The app container runs with `AI_PROVIDER=local` and starts after the sidecar's
   startup probe (`GET /api/version`) passes. Sidecar: 6 vCPU, 8 GiB; app: 1 vCPU,
   512 MiB (Cloud Run allows 8 vCPU per instance in total). Instance billing and one
@@ -144,21 +147,45 @@ the faster but out-of-India alternative.
 - Terraform declares the sidecar (`model_image`, `model_cpu`, `model_memory`,
   `app_container_name`); releases still own the app image and environment.
 
-Rollout (needs a signed-in `gcloud`; from the repository root):
+**Deployed 25 October 2026:** revision `interview-iq-local-models-v2-4d88c97`, 100% of
+traffic, app image `interview-iq:4d88c97`
+(`sha256:e9f8599d41011a007db50c94ff643132670c7b289db625b7e76e5b4959c6fca5`), model image
+`interview-iq-ollama:0.40.11-qwen3.5-4b-v2`
+(`sha256:541e62d83925b6577194a82e119b07570d3c0e39d68510ce2a4a8e4df1b39262`). Rollback revision:
+`interview-iq-cost-voice-c9bcf44` (practice mode). In Cloud Run the model server started in
+about 49 s and `/api/health` reported `aiMode: ai, model: ready`.
+
+Rollout (needs a signed-in `gcloud`; from the repository root). Builds run as the
+`interviewiq-build` service account with Cloud Logging only, as earlier deploys did:
 
 ```
-gcloud builds submit deploy/ollama --region=asia-south1 --timeout=3600   --tag asia-south1-docker.pkg.dev/PROJECT/cloud-run-source-deploy/interview-iq-ollama:0.40.11-qwen3.5-4b
-gcloud builds submit . --region=asia-south1 --tag asia-south1-docker.pkg.dev/PROJECT/cloud-run-source-deploy/interview-iq:SHA
+# Cloud Build config per image: one docker build step, images: [IMAGE],
+# options: { logging: CLOUD_LOGGING_ONLY, machineType: E2_HIGHCPU_8 }, timeout 3600s for the model
+gcloud builds submit deploy/ollama --region=asia-south1 --config=cb-model.yaml --service-account=projects/PROJECT/serviceAccounts/interviewiq-build@PROJECT.iam.gserviceaccount.com
+gcloud builds submit . --region=asia-south1 --config=cb-app.yaml --service-account=...same...
 gcloud run services describe interview-iq --region=asia-south1 --format=json > live.json
-node deploy/add-model-sidecar.mjs --in live.json --out next.json --revision interview-iq-local-models-SHA   --model-image .../interview-iq-ollama:0.40.11-qwen3.5-4b --app-image .../interview-iq:SHA
-gcloud run services replace next.json --region=asia-south1      # new revision, no traffic yet
-gcloud run services update-traffic interview-iq --region=asia-south1 --set-tags=candidate=interview-iq-local-models-SHA
-# check https://candidate---<service URL host>/api/health shows model "ready", then:
-gcloud run services update-traffic interview-iq --region=asia-south1 --to-revisions=interview-iq-local-models-SHA=100
+node deploy/add-model-sidecar.mjs --in live.json --out next.json --revision interview-iq-local-models-SHA --model-image MODEL_IMAGE --app-image APP_IMAGE --commit FULL_SHA
+# in next.json, for the check only: metadata.annotations["run.googleapis.com/maxScale"] = "2"
+# and add {"revisionName": "interview-iq-local-models-SHA", "tag": "candidate"} to spec.traffic
+gcloud run services replace next.json --region=asia-south1
+curl https://candidate---<service host>/api/health      # expect aiMode "ai" and model "ready"
+gcloud run services update-traffic interview-iq --region=asia-south1 --to-revisions=interview-iq-local-models-SHA=100 --remove-tags=candidate
+# then set the service maxScale back to "1" with a describe/replace of the same template (no new revision)
 ```
 
-Rollback: send traffic back to the previous revision with the same `update-traffic`
-command. Expect speeds similar to the laptop figures above (CPU only).
+Two lessons from the first attempt:
+
+- **The service allows one instance** (service-level min 1, max 1), so a candidate revision
+  cannot start while the old one holds it. Raise the service maximum to 2 for the check,
+  then restore it.
+- **Cloud Run's startup probe cannot reach a loopback-only server.** The first model image
+  bound `127.0.0.1` and its probe failed 60 times; the `-v2` image binds `0.0.0.0` inside
+  the container. No traffic reached the failed revision.
+
+`deploy/add-model-sidecar.mjs` also raises the request timeout to 600 s (first questions,
+rewrites and STAR checks wait on the CPU model), updates `DEPLOYMENT_COMMIT` and drops
+annotations left by earlier source builds. Roll back with `update-traffic --to-revisions=
+interview-iq-cost-voice-c9bcf44=100`.
 
 ## Training later
 

@@ -146,7 +146,7 @@ variable "app_container_name" {
 variable "model_image" {
   description = "Ollama sidecar image with the interview model baked in (deploy/ollama). Empty removes the sidecar."
   type        = string
-  default     = "asia-south1-docker.pkg.dev/project-12b39f1f-9d49-456e-957/cloud-run-source-deploy/interview-iq-ollama:0.40.11-qwen3.5-4b"
+  default     = "asia-south1-docker.pkg.dev/project-12b39f1f-9d49-456e-957/cloud-run-source-deploy/interview-iq-ollama:0.40.11-qwen3.5-4b-v2"
 }
 
 variable "model_cpu" {

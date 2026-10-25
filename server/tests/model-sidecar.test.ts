@@ -5,11 +5,12 @@ import { addModelSidecar } from '../../deploy/add-model-sidecar.mjs';
 const live = () => ({
   apiVersion: 'serving.knative.dev/v1', kind: 'Service',
   metadata: { name: 'interview-iq', uid: 'u', resourceVersion: 'r', generation: 9, creationTimestamp: 't',
-    annotations: { 'run.googleapis.com/ingress': 'all', 'run.googleapis.com/minScale': '1', 'serving.knative.dev/creator': 'someone', 'run.googleapis.com/operation-id': 'op' } },
+    annotations: { 'run.googleapis.com/ingress': 'all', 'run.googleapis.com/minScale': '1', 'serving.knative.dev/creator': 'someone', 'run.googleapis.com/operation-id': 'op',
+      'run.googleapis.com/build-id': 'old-build', 'run.googleapis.com/build-image-uri': 'app:old' } },
   spec: {
     template: { metadata: { name: 'interview-iq-cost-voice-c9bcf44', annotations: { 'run.googleapis.com/cpu-throttling': 'false' } },
-      spec: { serviceAccountName: 'app@x.iam.gserviceaccount.com', containers: [{ image: 'app:old', ports: [{ containerPort: 8080 }],
-        env: [{ name: 'AI_PROVIDER', value: 'practice' }, { name: 'CLIENT_ORIGIN', value: 'https://x' },
+      spec: { serviceAccountName: 'app@x.iam.gserviceaccount.com', timeoutSeconds: 60, containers: [{ image: 'app:old', ports: [{ containerPort: 8080 }],
+        env: [{ name: 'AI_PROVIDER', value: 'practice' }, { name: 'CLIENT_ORIGIN', value: 'https://x' }, { name: 'DEPLOYMENT_COMMIT', value: 'c9bcf44' },
           { name: 'JWT_SECRET', valueFrom: { secretKeyRef: { name: 'interviewiq-jwt-secret', key: 'latest' } } }] }] } },
     traffic: [{ latestRevision: true, percent: 100 }],
   },
@@ -17,13 +18,14 @@ const live = () => ({
 });
 
 it('adds the model sidecar, switches to local models and keeps everything else', () => {
-  const { manifest, serving } = addModelSidecar(live(), { revision: 'interview-iq-local-models-abc1234', modelImage: 'ollama:img', appImage: 'app:new' });
+  const { manifest, serving } = addModelSidecar(live(), { revision: 'interview-iq-local-models-abc1234', modelImage: 'ollama:img', appImage: 'app:new', commit: 'abc1234' });
   expect(serving).toBe('interview-iq-cost-voice-c9bcf44');
   expect(manifest.status).toBeUndefined();
   expect(manifest.metadata).toEqual({ name: 'interview-iq', annotations: { 'run.googleapis.com/ingress': 'all', 'run.googleapis.com/minScale': '1' } });
   const [app, model] = manifest.spec.template.spec.containers;
   expect(app).toMatchObject({ name: 'app', image: 'app:new', ports: [{ containerPort: 8080 }] });
-  expect(app.env).toEqual([{ name: 'CLIENT_ORIGIN', value: 'https://x' },
+  expect(manifest.spec.template.spec.timeoutSeconds).toBe(600);
+  expect(app.env).toEqual([{ name: 'CLIENT_ORIGIN', value: 'https://x' }, { name: 'DEPLOYMENT_COMMIT', value: 'abc1234' },
     { name: 'JWT_SECRET', valueFrom: { secretKeyRef: { name: 'interviewiq-jwt-secret', key: 'latest' } } }, { name: 'AI_PROVIDER', value: 'local' }]);
   expect(model).toMatchObject({ name: 'ollama', image: 'ollama:img', resources: { limits: { cpu: '6', memory: '8Gi' } } });
   expect(model.ports).toBeUndefined();
