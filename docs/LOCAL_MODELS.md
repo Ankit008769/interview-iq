@@ -126,6 +126,40 @@ criteria. Where both rated the same criterion (45 cases) the quadratic-weighted 
 from a 4B model should be read as rough coaching signals; the overall score is the more
 reliable number. Synthetic answers are also easier than real ones.
 
+## Running on Google Cloud (staging)
+
+Chosen 25 October 2026: a **CPU sidecar** in the existing Cloud Run service in Mumbai
+(asia-south1). Cloud Run L4 GPUs in Mumbai are invitation-only; a GPU in Singapore was
+the faster but out-of-India alternative.
+
+- `deploy/ollama/Dockerfile` builds Ollama 0.40.11 (pinned by digest) with
+  `qwen3.5:4b` baked in, a 16K context and the model kept loaded. It listens on
+  `127.0.0.1:11434` only, so nothing outside the instance can reach it.
+- The app container runs with `AI_PROVIDER=local` and starts after the sidecar's
+  startup probe (`GET /api/version`) passes. Sidecar: 6 vCPU, 8 GiB; app: 1 vCPU,
+  512 MiB (Cloud Run allows 8 vCPU per instance in total). Instance billing and one
+  always-on instance stay as before, so the cost is continuous.
+- `GET /api/health` reports `model: "ready"` once both configured models are installed,
+  without changing the status code.
+- Terraform declares the sidecar (`model_image`, `model_cpu`, `model_memory`,
+  `app_container_name`); releases still own the app image and environment.
+
+Rollout (needs a signed-in `gcloud`; from the repository root):
+
+```
+gcloud builds submit deploy/ollama --region=asia-south1 --timeout=3600   --tag asia-south1-docker.pkg.dev/PROJECT/cloud-run-source-deploy/interview-iq-ollama:0.40.11-qwen3.5-4b
+gcloud builds submit . --region=asia-south1 --tag asia-south1-docker.pkg.dev/PROJECT/cloud-run-source-deploy/interview-iq:SHA
+gcloud run services describe interview-iq --region=asia-south1 --format=json > live.json
+node deploy/add-model-sidecar.mjs --in live.json --out next.json --revision interview-iq-local-models-SHA   --model-image .../interview-iq-ollama:0.40.11-qwen3.5-4b --app-image .../interview-iq:SHA
+gcloud run services replace next.json --region=asia-south1      # new revision, no traffic yet
+gcloud run services update-traffic interview-iq --region=asia-south1 --set-tags=candidate=interview-iq-local-models-SHA
+# check https://candidate---<service URL host>/api/health shows model "ready", then:
+gcloud run services update-traffic interview-iq --region=asia-south1 --to-revisions=interview-iq-local-models-SHA=100
+```
+
+Rollback: send traffic back to the previous revision with the same `update-traffic`
+command. Expect speeds similar to the laptop figures above (CPU only).
+
 ## Training later
 
 This laptop (Ryzen 5 7530U, 15 GB RAM, integrated Radeon graphics, no NVIDIA GPU) can

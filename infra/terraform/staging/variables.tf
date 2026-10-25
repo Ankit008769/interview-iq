@@ -137,6 +137,30 @@ variable "run_memory" {
   default     = "512Mi"
 }
 
+variable "app_container_name" {
+  description = "Name of the app container. Required once the service has a second (model) container."
+  type        = string
+  default     = "app"
+}
+
+variable "model_image" {
+  description = "Ollama sidecar image with the interview model baked in (deploy/ollama). Empty removes the sidecar."
+  type        = string
+  default     = "asia-south1-docker.pkg.dev/project-12b39f1f-9d49-456e-957/cloud-run-source-deploy/interview-iq-ollama:0.40.11-qwen3.5-4b"
+}
+
+variable "model_cpu" {
+  description = "vCPUs for the model sidecar. App plus sidecar must stay within 8 vCPUs per instance."
+  type        = string
+  default     = "6"
+}
+
+variable "model_memory" {
+  description = "Memory for the model sidecar: model weights (~3.5 GB) plus a 16K-token context."
+  type        = string
+  default     = "8Gi"
+}
+
 variable "run_vpc_egress" {
   description = "CONFIRM: PRIVATE_RANGES_ONLY or ALL_TRAFFIC."
   type        = string

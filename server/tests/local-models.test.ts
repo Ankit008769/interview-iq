@@ -24,6 +24,7 @@ const bodies: any[] = [];
 let repeat = false;
 const gateway = createServer(async (req, res) => {
   let body = ''; for await (const chunk of req) body += chunk;
+  if (req.url === '/api/tags') { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ models: [{ name: 'qwen3.5:4b' }, { name: 'gemma4:e2b' }] })); return; }
   const parsed = JSON.parse(body); bodies.push(parsed);
   const input = JSON.parse(parsed.messages[1].content);
   const value = input.turns
@@ -63,6 +64,18 @@ it('configures a local model on loopback with CPU-friendly timeouts and leases',
   vi.stubEnv('AI_PROVIDER', 'local');
   expect(estimateCost([], { provider: 'local', model: 'qwen3.5:4b', slot: 'judge', inputTokens: 10, outputTokens: 5, at: new Date() }))
     .toEqual({ amountUsd: 0, reason: 'local_model' });
+});
+
+it('reports whether the local models are installed in the health check', async () => {
+  expect((await request(app).get('/api/health').expect(200)).body).toEqual({ ok: true, database: 'connected', aiMode: 'ai', model: 'ready' });
+  vi.stubEnv('JUDGE_MODEL', 'not-installed:1b');
+  expect((await request(app).get('/api/health').expect(200)).body.model).toBe('unavailable');
+  vi.stubEnv('JUDGE_MODEL', ''); const url = process.env.LLM_BASE_URL!;
+  vi.stubEnv('LLM_BASE_URL', 'http://127.0.0.1:9/v1');
+  expect((await request(app).get('/api/health').expect(200)).body.model).toBe('unavailable');
+  vi.stubEnv('LLM_BASE_URL', url); vi.stubEnv('AI_PROVIDER', 'practice');
+  expect((await request(app).get('/api/health').expect(200)).body.model).toBeUndefined();
+  vi.stubEnv('AI_PROVIDER', 'local');
 });
 
 it('tells users their answers stay on the Interview IQ server', async () => {

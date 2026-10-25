@@ -95,6 +95,18 @@ export function configuredProvider(): ModelProvider | null {
   };
 }
 
+// For the health endpoint: whether the local model server answers and has both configured models installed.
+export async function localModelStatus(): Promise<'ready' | 'unavailable' | undefined> {
+  const config = providerConfig();
+  if (config.provider !== 'local') return undefined;
+  try {
+    const response = await fetch(new URL('/api/tags', config.baseURL).toString(), { signal: AbortSignal.timeout(1500) });
+    const { models } = await response.json() as { models?: { name: string }[] };
+    const installed = new Set((models ?? []).map(m => m.name));
+    return installed.has(config.interviewerModel) && installed.has(config.judgeModel) ? 'ready' : 'unavailable';
+  } catch { return 'unavailable'; }
+}
+
 const audioExtensions: Record<string, string> = { 'audio/webm': 'webm', 'audio/ogg': 'ogg', 'audio/mp4': 'm4a', 'audio/mpeg': 'mp3', 'audio/wav': 'wav' };
 
 // Speech to text through the configured provider's OpenAI-compatible /audio/transcriptions endpoint

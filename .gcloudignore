@@ -15,3 +15,6 @@ server/tests
 agent-notes
 .codex
 .agents
+**/.terraform
+calibration/output
+calibration/ratings

@@ -243,7 +243,10 @@ resource "google_cloud_run_v2_service" "app" {
     }
 
     containers {
+      name  = var.app_container_name
       image = var.container_image
+      # With local models, the app starts after the model sidecar answers.
+      depends_on = var.model_image == "" ? [] : ["ollama"]
       ports {
         container_port = 8080
       }
@@ -286,6 +289,33 @@ resource "google_cloud_run_v2_service" "app" {
             secret  = google_secret_manager_secret.app["interviewiq-jwt-secret"].secret_id
             version = "latest"
           }
+        }
+      }
+    }
+
+    # Ollama with the interview model baked in (deploy/ollama), reachable only on localhost inside the instance.
+    # See docs/LOCAL_MODELS.md. An empty model_image removes the sidecar.
+    dynamic "containers" {
+      for_each = var.model_image == "" ? [] : [var.model_image]
+      content {
+        name  = "ollama"
+        image = containers.value
+        resources {
+          limits = {
+            cpu    = var.model_cpu
+            memory = var.model_memory
+          }
+          cpu_idle          = false
+          startup_cpu_boost = true
+        }
+        startup_probe {
+          http_get {
+            path = "/api/version"
+            port = 11434
+          }
+          period_seconds    = 5
+          timeout_seconds   = 3
+          failure_threshold = 60
         }
       }
     }
