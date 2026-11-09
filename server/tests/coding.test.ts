@@ -45,10 +45,15 @@ const runner = createServer(async (req, res) => {
 
 // Stub AI gateway: a follow-up question, then a review whose first quote comes from the code and second is invented.
 const aiCalls: { system: string; input: any }[] = [];
+let failReview = false, savedBeforeReview = false;
 const gateway = createServer(async (req, res) => {
   let body = ''; for await (const chunk of req) body += chunk;
   const parsed = JSON.parse(body); const input = JSON.parse(parsed.messages[1].content);
   aiCalls.push({ system: parsed.messages[0].content, input });
+  if (input.candidateExplanation) {
+    savedBeforeReview = !!await CodeRun.exists({ 'followUp.answer': input.candidateExplanation });
+    if (failReview) { res.writeHead(503); res.end('unavailable'); return; }
+  }
   const value = input.candidateExplanation
     ? { summary: 'A clear hash-map solution with a correct complexity claim.', criteria: [
       { criterionId: 'approach', score: 5, quote: 'const seen = new Map();', rationale: 'Uses a hash map.', improvement: null },
@@ -77,7 +82,7 @@ beforeAll(async () => {
     await agent.post('/api/auth/register').send({ name: 'Coder', email, password: 'test-password' }).expect(201);
   }
 }, 120_000);
-beforeEach(async () => { runnerCalls.length = 0; aiCalls.length = 0; await CodeRun.deleteMany({}); });
+beforeEach(async () => { runnerCalls.length = 0; aiCalls.length = 0; failReview = false; savedBeforeReview = false; await CodeRun.deleteMany({}); });
 afterAll(async () => { vi.unstubAllEnvs(); await mongoose.disconnect(); await mongo?.stop(); runner.close(); gateway.close(); });
 
 describe('problem catalogue', () => {
@@ -238,6 +243,29 @@ describe('coding API', () => {
     expect(criteria[3]).toMatchObject({ score: 4, evidence: { quote: 'one pass with a hash map' } });
     expect(reviewed.verdict).toBe('accepted'); // the review never changes the test result
     expect(aiCalls[1].input.candidateExplanation).toMatch(/O\(n\) time/);
-    expect((await owner.post(`/api/coding/runs/${submitted.id}/answer`).send({ answer: 'A different explanation of the same code.' }).expect(200)).body.replayed).toBe(true);
+    expect(savedBeforeReview).toBe(true);
+    await owner.post(`/api/coding/runs/${submitted.id}/answer`).send({ answer: 'A different explanation of the same code.' }).expect(409);
+    expect((await owner.post(`/api/coding/runs/${submitted.id}/answer`).send({ answer: reviewed.followUp.answer }).expect(200)).body.replayed).toBe(true);
+  });
+
+  it('saves the first explanation before a provider failure and recovers it without overwriting on retry', async () => {
+    const submitted = (await owner.post('/api/coding/problems/two-sum/runs').send({ language: 'javascript', source: TWO_SUM_JS, mode: 'submit' }).expect(201)).body.run;
+    const { disclosure } = (await owner.get('/api/account/ai-consent').expect(200)).body;
+    await owner.post('/api/account/ai-consent').send({ version: disclosure.version, accepted: true }).expect(200);
+    await owner.post(`/api/coding/runs/${submitted.id}/follow-up`).send({}).expect(201);
+    failReview = true;
+    const answers = ['I use one pass with a hash map and O(n) space.', 'I use a different explanation in a second browser tab.'];
+    const replies = await Promise.all(answers.map(answer => owner.post(`/api/coding/runs/${submitted.id}/answer`).send({ answer })));
+    expect(replies.map(r => r.status).sort()).toEqual([409, 502]);
+    expect(replies.find(r => r.status === 502)!.body.code).toBe('ANSWER_SAVED_REVIEW_FAILED');
+    expect(savedBeforeReview).toBe(true);
+    const saved = (await owner.get(`/api/coding/runs/${submitted.id}`).expect(200)).body.run;
+    expect(answers).toContain(saved.followUp.answer); expect(saved.followUp.review).toBeUndefined();
+    const timestamp = saved.followUp.answeredAt;
+    await other.post(`/api/coding/runs/${submitted.id}/answer`).send({ answer: saved.followUp.answer }).expect(404);
+    failReview = false;
+    const recovered = (await owner.post(`/api/coding/runs/${submitted.id}/answer`).send({ answer: saved.followUp.answer, language: 'hi' }).expect(201)).body.run;
+    expect(recovered.followUp).toMatchObject({ answer: saved.followUp.answer, answeredAt: timestamp, answerLanguage: 'en' });
+    expect(recovered.followUp.review).toBeDefined(); expect(recovered.verdict).toBe('accepted');
   });
 });

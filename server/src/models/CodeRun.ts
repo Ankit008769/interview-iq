@@ -8,7 +8,7 @@ import type { SubmissionLanguage, TestStatus, Verdict } from '../coding/types.js
 // status, never inputs or outputs.
 export type CodeTestOutcome = { index: number; visible: boolean; large: boolean; status: TestStatus; ms?: number; error?: string; actual?: unknown };
 export type CodeReview = { criteria: CriterionRating[]; summary: string; generation?: GenerationMetadata; createdAt: Date };
-export type CodeFollowUp = { question: string; generation?: GenerationMetadata; askedAt: Date; answer?: string; answeredAt?: Date; review?: CodeReview };
+export type CodeFollowUp = { question: string; generation?: GenerationMetadata; askedAt: Date; answer?: string; answeredAt?: Date; answerLanguage?: 'en' | 'hi' | 'hinglish'; review?: CodeReview };
 export interface ICodeRun {
   userId: mongoose.Types.ObjectId;
   problemId: string;
@@ -54,7 +54,7 @@ const codeRunSchema = new Schema<ICodeRun>({
   message: { type: String, maxlength: 8000 },
   runMs: Number, compileMs: Number, runnerVersion: String,
   followUp: { type: new Schema({ question: { type: String, required: true }, generation: generationSchema, askedAt: { type: Date, required: true },
-    answer: { type: String, maxlength: 3500 }, answeredAt: Date,
+    answer: { type: String, maxlength: 3500 }, answeredAt: Date, answerLanguage: { type: String, enum: ['en', 'hi', 'hinglish'] },
     review: { type: new Schema({ criteria: [criterionSchema], summary: String, generation: generationSchema, createdAt: Date }, { _id: false }) } }, { _id: false }) },
 }, { timestamps: true });
 codeRunSchema.index({ userId: 1, problemId: 1, createdAt: -1 });

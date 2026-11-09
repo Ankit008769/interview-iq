@@ -60,7 +60,16 @@ test('the coding lab runs code against tests, then the interviewer asks and revi
     await followUp.getByRole('button', { name: "Get the interviewer's question" }).click();
     await expect(followUp.getByText('What are its time and space complexity')).toBeVisible();
     await followUp.getByLabel('Your answer').fill('One pass with a hash map: O(n) time and O(n) space for the map.');
+    expect((await page.request.post('/__test/fail-next-coding-review')).status()).toBe(204);
     await followUp.getByRole('button', { name: 'Get feedback' }).click();
+    await expect(followUp.getByRole('alert')).toContainText('Your explanation is saved');
+    await expect(followUp.getByRole('button', { name: 'Retry review' })).toBeVisible();
+    await page.reload();
+    await page.locator('.recent-runs summary').click();
+    await page.locator('.recent-runs').getByRole('button', { name: /Submission/ }).first().click();
+    await expect(followUp.getByLabel('Your answer')).toHaveValue('One pass with a hash map: O(n) time and O(n) space for the map.');
+    await expect(followUp.getByLabel('Your answer')).toHaveAttribute('readonly', '');
+    await followUp.getByRole('button', { name: 'Retry review' }).click();
     const approach = followUp.locator('.review-criteria li', { hasText: 'Algorithmic approach' });
     await expect(approach.getByText('5/5')).toBeVisible();
     await expect(approach.getByText('“new Map()”')).toBeVisible();

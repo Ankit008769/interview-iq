@@ -1,5 +1,27 @@
 # Phase A: reliable, evidence-based coaching
 
+## Current continuation - 9 November 2026
+
+Reviewed Claude's committed work from `55d9f64` through `dcd478b`: resume/JD
+grounding, delivery/STAR feedback, local model and transcription sidecars,
+Hindi/Hinglish support, feature visibility, adaptive learning and the coding lab.
+These features are preserved. The deployment descriptions below are historical;
+this continuation does not independently certify the current cloud deployment.
+
+The next reliability slice fixes coding explanations being lost when AI review
+fails: save the explanation first, recover it from Recent runs after reload, and
+retry review of that immutable answer. Conflicting answers receive a conflict
+response. See [CODING_LAB.md](CODING_LAB.md) for the manual retry contract.
+The blocking Google Fonts CSS import was also removed after browser tests showed
+page-load timeouts when the external service was unreachable. Existing local/system
+font fallbacks are used instead.
+
+Remaining priorities: durable coding execution/review jobs, external sandbox review,
+MERN debugging drills and the larger curated problem set. The Phase A empirical
+gates remain open: independent human calibration, representative real answers,
+measured provider comparisons and scoped cost reconciliation. Automated local-model
+checks do not replace human calibration. Email delivery remains disabled.
+
 Decision date: 24 October 2026. This implementation follows the product sequence
 in the founder's 51-page strategy report, with the founder-authorized API-first
 change. It does not claim the full Phase A exit gate is complete.

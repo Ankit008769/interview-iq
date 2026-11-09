@@ -115,6 +115,22 @@ from [LANGUAGES.md](LANGUAGES.md)):
 timings and the follow-up. It is included in the account export (`codeRuns`), deleted with the account and
 reconciled on restore.
 
+### Explanation recovery (9 November 2026)
+
+The first accepted follow-up explanation, its language and timestamp are saved before
+AI quota checks and review dispatch. Provider failure leaves that explanation intact.
+Reopen the submission from Recent runs after a reload, then choose **Retry review**.
+The explanation becomes read-only once saved; a different explanation from another
+tab receives `409 ANSWER_CONFLICT`. Retrying the same completed explanation returns
+the stored review without another call. Retry language changes cannot replace the
+saved language. Each retry still requires current AI permission and quota.
+
+Review recovery is manual, not a background job. An interrupted request or concurrent
+retry of the same explanation can cause another provider call; storage remains
+idempotent, but provider billing is not exactly-once. Test verdicts are never changed
+by review completion. Code runs themselves still execute before being persisted;
+durable code-execution jobs and external sandbox security review remain open.
+
 ## Running locally
 
 On a laptop without Docker, `RUNNER_MODE=local-unsafe` runs programs directly with the installed tools and

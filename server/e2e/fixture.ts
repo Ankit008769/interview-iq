@@ -60,11 +60,16 @@ host.post('/__test/disable-ai', (_req,res)=>{process.env.AI_PROVIDER='practice';
 // numbered, and tailored ones cite the first line of the first document; STAR checks of the seeded behavioral
 // answer find three parts and miss the result; for the seeded evidence answer, rewrites restate both seeded sentences plus one bracketed
 // prompt and second reviews rate the seeded quote 5.
+let failNextCodingReview = false;
+host.post('/__test/fail-next-coding-review', requireAuth, (_req, res) => { failNextCodingReview = true; res.sendStatus(204); });
 const gateway = createServer(async (req, res) => {
   let body = ''; for await (const chunk of req) body += chunk;
   res.setHeader('content-type', 'application/json');
   if (req.url?.endsWith('/audio/transcriptions')) { res.end(JSON.stringify({ text: 'Arrays give constant-time indexed access.' })); return; }
   const input = JSON.parse(JSON.parse(body).messages[1].content);
+  if (input.candidateExplanation && failNextCodingReview) {
+    failNextCodingReview = false; res.writeHead(503); res.end(JSON.stringify({ error: 'Test provider unavailable' })); return;
+  }
   const value = input.candidateExplanation ? { summary: 'A hash map gives a one-pass solution; the complexity claim is right.', criteria: [
       { criterionId: 'approach', score: 5, quote: 'new Map()', rationale: 'A hash map suits the lookups.', improvement: null },
       { criterionId: 'complexity', score: 4, quote: 'O(n) time', rationale: 'The time complexity is stated correctly.', improvement: 'Also state the O(n) space.' },

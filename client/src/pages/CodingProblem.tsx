@@ -132,16 +132,22 @@ function Results({ run, problem, onUpdate }: { run: CodeRun; problem: CodingProb
       </div>; })}
     {hidden.length > 0 && <p className="hidden-summary">Hidden tests: {hidden.filter(t => t.status === 'passed').length}/{hidden.length} passed.{largeTrouble ? ' A large input failed or did not finish in time, which usually points to time complexity.' : ''}</p>}
     {run.output && <details className="program-output"><summary>Program output</summary><pre className="code-block small">{run.output}</pre></details>}
-    {run.mode === 'submit' && run.verdict !== 'compile_error' && run.verdict !== 'runner_error' && <FollowUp run={run} onUpdate={onUpdate}/>}
+    {run.mode === 'submit' && run.verdict !== 'compile_error' && run.verdict !== 'runner_error' && <FollowUp key={run.id} run={run} onUpdate={onUpdate}/>}
   </div>;
 }
 
 function FollowUp({ run, onUpdate }: { run: CodeRun; onUpdate: (run: CodeRun) => void }) {
-  const [answer, setAnswer] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [needsConsent, setNeedsConsent] = useState(false);
+  const [answer, setAnswer] = useState(run.followUp?.answer ?? ''); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [needsConsent, setNeedsConsent] = useState(false);
+  useEffect(() => { if (run.followUp?.answer !== undefined) setAnswer(run.followUp.answer); }, [run.followUp?.answer]);
   const call = async (path: string, body: object) => {
     setBusy(true); setError('');
     try { const d = await api<{ run: CodeRun }>(`/coding/runs/${run.id}/${path}`, { method: 'POST', body: JSON.stringify(body), timeoutMs: 300_000 }); onUpdate(d.run); setNeedsConsent(false); }
-    catch (e) { if (e instanceof ApiError && e.status === 409 && /consent/i.test(e.message)) setNeedsConsent(true); setError((e as Error).message); }
+    catch (e) {
+      if (e instanceof ApiError && e.status === 409 && /consent/i.test(e.message)) setNeedsConsent(true);
+      setError((e as Error).message);
+      // A timeout or failed review does not mean the answer was lost. Recover the server snapshot.
+      try { const d = await api<{ run: CodeRun }>(`/coding/runs/${run.id}`); onUpdate(d.run); } catch { /* keep the local draft until recovery is possible */ }
+    }
     finally { setBusy(false); }
   };
   const followUp = run.followUp;
@@ -150,8 +156,9 @@ function FollowUp({ run, onUpdate }: { run: CodeRun; onUpdate: (run: CodeRun) =>
   if (!followUp) body = <><p>The interviewer asks one question about your approach, as in a live coding round. Answering it gets you feedback on your approach, complexity reasoning, code quality and explanation.</p>
     <button type="button" className="button primary" disabled={busy} onClick={() => void call('follow-up', {})}>{busy ? 'The interviewer is reading your code…' : 'Get the interviewer\'s question'}</button></>;
   else if (!review) body = <><p className="interviewer-question"><MessageSquareText size={17}/> {followUp.question}</p>
-    <label className="field">Your answer<textarea value={answer} onChange={e => setAnswer(e.target.value)} rows={5} maxLength={3500} placeholder="Explain your approach, its time and space complexity, and any trade-offs."/></label>
-    <button type="button" className="button primary" disabled={busy || answer.trim().length < 10} onClick={() => void call('answer', { answer })}>{busy ? 'Reviewing… this can take a minute' : 'Get feedback'}</button></>;
+    <label className="field">Your answer<textarea value={answer} onChange={e => setAnswer(e.target.value)} readOnly={busy || followUp.answer !== undefined} rows={5} maxLength={3500} placeholder="Explain your approach, its time and space complexity, and any trade-offs."/></label>
+    {followUp.answer !== undefined && <p role="status">Your explanation is saved. You can retry its review.</p>}
+    <button type="button" className="button primary" disabled={busy || answer.trim().length < 10} onClick={() => void call('answer', { answer })}>{busy ? 'Reviewing… this can take a minute' : followUp.answer !== undefined ? 'Retry review' : 'Get feedback'}</button></>;
   else body = <>
     <p className="interviewer-question"><MessageSquareText size={17}/> {followUp.question}</p>
     <blockquote className="your-answer">{followUp.answer}</blockquote>

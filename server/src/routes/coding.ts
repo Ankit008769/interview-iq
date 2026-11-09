@@ -167,21 +167,35 @@ router.post('/runs/:id/answer', aiLimit, async (req, res, next) => {
     const parsed = answerSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: 'Explain your approach in 10 to 3500 characters.' }); return; }
     if (!run.followUp) { res.status(409).json({ error: 'Ask for the interviewer question first.' }); return; }
+    if (run.followUp.answer !== undefined && run.followUp.answer !== parsed.data.answer) {
+      res.status(409).json({ error: 'An explanation is already saved for this submission. Reload it to retry its review.', code: 'ANSWER_CONFLICT' }); return;
+    }
     if (run.followUp.review) { res.json({ run: runView(run), replayed: true }); return; }
     const problem = PROBLEM_BY_ID.get(run.problemId)!;
     await requireAIConsent(userId(req));
+    // Persist the accepted explanation before quota checks or any provider work. The first writer wins;
+    // retries use this immutable snapshot, including its language, rather than a new request body.
+    const saved = await CodeRun.findOneAndUpdate({ _id: run._id, userId: userId(req), 'followUp.answer': { $exists: false } },
+      { $set: { 'followUp.answer': parsed.data.answer, 'followUp.answeredAt': new Date(), 'followUp.answerLanguage': parsed.data.language ?? 'en' } }, { new: true })
+      ?? await CodeRun.findOne({ _id: run._id, userId: userId(req) });
+    if (!saved) { res.status(404).json({ error: 'Run not found.' }); return; }
+    if (saved.followUp?.answer !== parsed.data.answer) {
+      res.status(409).json({ error: 'Another explanation was already saved. Reload it to retry its review.', code: 'ANSWER_CONFLICT' }); return;
+    }
+    if (saved.followUp.review) { res.json({ run: runView(saved), replayed: true }); return; }
     await consumeAIQuota(userId(req));
     let review;
-    try { review = await reviewSubmission({ ...contextFor(run, problem, req, parsed.data.language), question: run.followUp.question, answer: parsed.data.answer }); }
+    try { review = await reviewSubmission({ ...contextFor(saved, problem, req, saved.followUp.answerLanguage), question: saved.followUp.question, answer: saved.followUp.answer }); }
     catch (err) {
       if (err instanceof ConsentRequiredError) throw err;
       operationalEvent('coding_review_failure', 'WARNING');
-      res.status(502).json({ error: 'Your explanation could not be reviewed. It was not saved; please try again.' }); return;
+      res.status(502).json({ error: 'Your explanation is saved, but its review failed. Retry the review when you are ready.', code: 'ANSWER_SAVED_REVIEW_FAILED' }); return;
     }
     const updated = await CodeRun.findOneAndUpdate({ _id: run._id, userId: userId(req), 'followUp.review': { $exists: false } },
-      { $set: { 'followUp.answer': parsed.data.answer, 'followUp.answeredAt': new Date(), 'followUp.review': { ...review, createdAt: new Date() } } }, { new: true })
+      { $set: { 'followUp.review': { ...review, createdAt: new Date() } } }, { new: true })
       ?? await CodeRun.findOne({ _id: run._id, userId: userId(req) });
-    res.status(201).json({ run: runView(updated!) });
+    if (!updated) { res.status(404).json({ error: 'Run not found.' }); return; }
+    res.status(201).json({ run: runView(updated) });
   } catch (err) { next(err); }
 });
 
