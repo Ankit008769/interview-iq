@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, CalendarClock, CalendarDays, Flame, GraduationCap, Repeat, Sparkles, Target, TrendingDown, TrendingUp } from 'lucide-react';
-import { api, timeZone, type Drill, type Interview, type InterviewType, type LearningOverview, type ProgressReport, type SkillView, type StudyPlan } from '../lib/api';
+import { api, timeZone, warmUpAI, type Drill, type Interview, type InterviewType, type LearningOverview, type ProgressReport, type SkillView, type StudyPlan } from '../lib/api';
 import { AIConsent } from '../components/AIConsent';
 import { LoadingScreen } from '../components/Layout';
 
@@ -24,6 +24,7 @@ export function Learn() {
       const [overview, progress, consent] = await Promise.all([api<LearningOverview>('/learning/overview', { headers: zoneHeaders() }),
         api<ProgressReport>('/learning/report?weeks=4', { headers: zoneHeaders() }), api<{ accepted: boolean }>('/account/ai-consent')]);
       setData(overview); setReport(progress); setConsented(consent.accepted);
+      if (overview.aiAvailable && overview.drill) warmUpAI();
     } catch (e) { setError((e as Error).message); }
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -56,7 +57,7 @@ export function Learn() {
           <p className="drill-meta">{data.drill.config.type} · {data.drill.config.topic} · {data.drill.config.difficulty} · {data.drill.config.totalQuestions} questions · {data.drill.config.timeLimitSeconds / 60} min each</p>
           {consented === false && <AIConsent onChange={ready => setConsented(ready)}/>}
           {startError && <div className="alert error" role="alert">{startError}</div>}
-          <button className="button primary" disabled={!canStart} onClick={() => void start(data.drill!)}>{starting === data.drill.skillId ? 'Writing your first question… this can take up to a minute' : "Start today's drill"} <ArrowRight size={17}/></button>
+          <button className="button primary" disabled={!canStart} onClick={() => void start(data.drill!)}>{starting === data.drill.skillId ? 'Writing your first question… this can take a minute or two if the AI model was idle' : "Start today's drill"} <ArrowRight size={17}/></button>
         </>}
       </section>
       <PlanCard plan={data.plan} onSaved={() => void load()}/>

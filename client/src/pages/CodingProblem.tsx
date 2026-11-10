@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, CircleAlert, Clock3, MessageSquareText, Play, RotateCcw, Send, ShieldCheck, Sparkles } from 'lucide-react';
-import { ApiError, api, type CodeLang, type CodeRun, type CodeRunSummary, type CodeVerdict, type CodingProblem, type CodingStatus } from '../lib/api';
+import { ApiError, api, warmUpAI, type CodeLang, type CodeRun, type CodeRunSummary, type CodeVerdict, type CodingProblem, type CodingStatus } from '../lib/api';
 import { CodeEditor } from '../components/CodeEditor';
 import { AIConsent } from '../components/AIConsent';
 import { LoadingScreen } from '../components/Layout';
@@ -44,7 +44,7 @@ export function CodingProblemPage() {
       const first = preferred && d.problem.languages.includes(preferred) ? preferred : d.problem.languages.includes('python') ? 'python' : d.problem.languages[0];
       setLanguage(first); setCode(readDraft(d.problem.id, first) ?? d.problem.starters[first] ?? '');
     }).catch(e => setError(e.message));
-    api<CodingStatus>('/coding/status').then(setStatus).catch(() => {});
+    api<CodingStatus>('/coding/status').then(s => { setStatus(s); if (s.aiAvailable) warmUpAI(); }).catch(() => {});
   }, [id]);
   const changeLanguage = (next: CodeLang) => {
     if (!problem) return;

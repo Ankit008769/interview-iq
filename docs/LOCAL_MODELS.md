@@ -147,7 +147,56 @@ the faster but out-of-India alternative.
 - Terraform declares the sidecar (`model_image`, `model_cpu`, `model_memory`,
   `app_container_name`); releases still own the app image and environment.
 
-**Current (25 October 2026, 14:36 UTC):** revision `interview-iq-learning-1d439c7` serves 100% of traffic
+### Staging outage and the move to scale-to-zero models (10 November 2026)
+
+**Staging has been down since 30 October 2026, 07:48 UTC: billing is disabled on the project**
+(`gcloud billing projects describe` shows `billingEnabled: false`). Cloud Run cannot start
+instances, so every request returns 503. The likely cause is the design above: one always-on
+instance with 8 vCPU (app 1, Ollama 6, speech 1) and about 10.5 GiB costs roughly $15–20 a
+day before the database VM. Billing is the owner's setting; nothing can be released until it
+is turned back on.
+
+The owner chose to have the models **scale to zero** when billing returns (implemented, not yet
+deployed):
+
+- Ollama and faster-whisper move into their own private Cloud Run services,
+  `interview-iq-ollama` (8 vCPU, 8 GiB, 0–1 instances, 1,200 s requests) and
+  `interview-iq-whisper` (2 vCPU, 2 GiB, 0–2 instances), with request-based billing: they cost
+  nothing while idle. Their service account `interviewiq-models` has no IAM roles; only the
+  app's service account may invoke them (`infra/terraform/staging/models.tf`).
+- The app keeps `AI_PROVIDER=local` and points at them with `LLM_BASE_URL`,
+  `TRANSCRIPTION_BASE_URL` and `LOCAL_MODEL_AUTH=google`. The config accepts a remote "local"
+  model only as HTTPS on `run.app` with that setting, and every call carries an identity token
+  from the metadata server (`server/src/services/googleIdentity.ts`; concurrent calls share one
+  token request, cached for 45 minutes).
+- `GET /api/health` reports `model: "on-demand"` and `voice: "on-demand"` without calling
+  them, so uptime checks never keep them running.
+- Opening setup, Learn or a coding problem calls `POST /api/interviews/warmup`, which loads each
+  configured model with an empty Ollama prompt and wakes the speech service (no candidate
+  content, at most once per five minutes, 20 per user per 15 minutes). The first question after
+  an idle period still waits for the model to load, about a minute; the setup button says so.
+  `OLLAMA_PRELOAD=0` skips the start-up preload, which would run without CPU between requests.
+- The app instance drops to 1 vCPU and 512 MiB and stays always on for the background worker,
+  roughly $2–3 a day with the database VM, plus model time while it is used. These are estimates
+  from list prices, not measured bills.
+
+Release steps once billing is back (new resources are announced before they are created):
+
+```bash
+# 1. Model services (no-role service account; private; scale to zero)
+gcloud iam service-accounts create interviewiq-models --display-name="InterviewIQ open model services (no roles)"
+gcloud run deploy interview-iq-ollama --image=asia-south1-docker.pkg.dev/project-12b39f1f-9d49-456e-957/cloud-run-source-deploy/interview-iq-ollama:0.40.11-qwen3.5-4b-v2 --region=asia-south1 --service-account=interviewiq-models@project-12b39f1f-9d49-456e-957.iam.gserviceaccount.com --no-allow-unauthenticated --execution-environment=gen2 --cpu=8 --memory=8Gi --concurrency=4 --min-instances=0 --max-instances=1 --timeout=1200 --port=11434 --cpu-boost --set-env-vars=OLLAMA_PRELOAD=0
+gcloud run deploy interview-iq-whisper --image=asia-south1-docker.pkg.dev/project-12b39f1f-9d49-456e-957/cloud-run-source-deploy/interview-iq-whisper:1.2.1-small --region=asia-south1 --service-account=interviewiq-models@project-12b39f1f-9d49-456e-957.iam.gserviceaccount.com --no-allow-unauthenticated --execution-environment=gen2 --cpu=2 --memory=2Gi --concurrency=2 --min-instances=0 --max-instances=2 --timeout=600 --port=8000 --cpu-boost
+gcloud run services add-iam-policy-binding interview-iq-ollama --region=asia-south1 --member=serviceAccount:interviewiq-app@project-12b39f1f-9d49-456e-957.iam.gserviceaccount.com --role=roles/run.invoker
+gcloud run services add-iam-policy-binding interview-iq-whisper --region=asia-south1 --member=serviceAccount:interviewiq-app@project-12b39f1f-9d49-456e-957.iam.gserviceaccount.com --role=roles/run.invoker
+# 2. App release without sidecars (the usual candidate -> check -> switch -> restore)
+node deploy/prepare-release.mjs candidate --in live.json --out next.json --revision interview-iq-split-SHA --app-image .../interview-iq:SHA --commit SHA --split-models yes --env LOCAL_MODEL_AUTH=google --env LLM_BASE_URL=https://OLLAMA-URL/v1 --env TRANSCRIPTION_BASE_URL=https://WHISPER-URL/v1 --env RUNNER_URL=https://interview-iq-runner-341474411884.asia-south1.run.app --env RUNNER_AUTH=google
+```
+
+The Ollama image's start script reads `OLLAMA_PRELOAD` from the next image build (`-v3`); the
+current `-v2` image ignores it and starts a preload that simply waits for CPU, which is harmless.
+
+**Last served (25 October 2026, 14:36 UTC, until billing stopped on 30 October):** revision `interview-iq-learning-1d439c7` served 100% of traffic
 with app `interview-iq:1d439c7` (`sha256:dbba319c7e5ae67f47e6e58efd08e9e3dbcb58a265e19027499331e15df8d31b`: adaptive learning, daily drills, study plans and
 interview styles, see [ADAPTIVE_LEARNING.md](ADAPTIVE_LEARNING.md)) and the same Ollama and speech containers;
 rollback `interview-iq-visibility-5926cbd`.

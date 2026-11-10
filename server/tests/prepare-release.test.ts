@@ -65,3 +65,16 @@ it('sets plain app environment variables for a release but never replaces a secr
   expect(() => candidate(base, { revision: 'interview-iq-x', env: { JWT_SECRET: 'plain' } })).toThrow(/comes from a secret/);
   expect(() => candidate(base, { revision: 'interview-iq-x', env: { 'bad-name': 'x' } })).toThrow(/Invalid environment variable name/);
 });
+
+it('removes the model and speech sidecars when they move to their own services', () => {
+  const base = live();
+  base.spec.template.spec.containers.push({ name: 'whisper', image: 'whisper:small', resources: { limits: { cpu: '1', memory: '2Gi' } } } as any);
+  base.spec.template.spec.containers[0].env.push({ name: 'TRANSCRIPTION_MODEL', value: 'small' });
+  const env = { LLM_BASE_URL: 'https://interview-iq-ollama-1.asia-south1.run.app/v1', LOCAL_MODEL_AUTH: 'google', TRANSCRIPTION_BASE_URL: 'https://interview-iq-whisper-1.asia-south1.run.app/v1' };
+  const { manifest } = candidate(base, { revision: 'interview-iq-split-abc1234', env, splitModels: true });
+  expect(manifest.spec.template.spec.containers.map((c: any) => c.name)).toEqual(['app']);
+  expect(manifest.spec.template.metadata.annotations['run.googleapis.com/container-dependencies']).toBeUndefined();
+  expect(manifest.spec.template.spec.containers[0].env).toEqual(expect.arrayContaining([{ name: 'LOCAL_MODEL_AUTH', value: 'google' }, { name: 'LLM_BASE_URL', value: env.LLM_BASE_URL }]));
+  expect(() => candidate(base, { revision: 'interview-iq-x', env: { LLM_BASE_URL: env.LLM_BASE_URL, LOCAL_MODEL_AUTH: 'google' }, splitModels: true })).toThrow(/TRANSCRIPTION_BASE_URL/);
+  expect(() => candidate(base, { revision: 'interview-iq-x', env: {}, splitModels: true })).toThrow(/LOCAL_MODEL_AUTH=google/);
+});

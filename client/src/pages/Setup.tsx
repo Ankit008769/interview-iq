@@ -2,7 +2,7 @@ import { AIConsent } from '../components/AIConsent';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, BrainCircuit, Check, CircleHelp, Clock3, FileText, MessageCircle, Sparkles, Target } from 'lucide-react';
-import { api, LANGUAGE_LABELS, STYLE_LABELS, type CandidateDocument, type Interview, type InterviewLanguage, type InterviewStyle, type Mode } from '../lib/api';
+import { api, LANGUAGE_LABELS, STYLE_LABELS, warmUpAI, type CandidateDocument, type Interview, type InterviewLanguage, type InterviewStyle, type Mode } from '../lib/api';
 const types=['Technical','Behavioral','HR'] as const;
 const topics=['DSA','React','Node.js','DBMS','Behavioral','General'];
 const difficulties=['Beginner','Intermediate','Advanced'] as const;
@@ -51,7 +51,7 @@ export function Setup() {
       <div className="setup-label"><span className="num-pill">05</span><div><h3>Time per question</h3><p>Practise under real interview pressure, or take your time.</p></div></div>
       <div className="segmented timing-select" role="group" aria-label="Time per question">{([null,120,180,300] as const).map(v=><button type="button" key={v??0} aria-pressed={timeLimit===v} onClick={()=>setTimeLimit(v)} className={timeLimit===v?'active':''}>{v?`${v/60} min`:'Untimed'}</button>)}</div>
       <p className="timing-note">{timeLimit?`A countdown runs for each question, up to ${totalQuestions*timeLimit/60} minutes in total. You can pause it, and you can still submit after time runs out; your results show how long each answer took.`:'No countdown. Your results still show how long each answer took.'}</p>
-      <div className="line"/><AIConsent onChange={(ready,available)=>{setConsented(ready);setAIAvailable(available);}}/>
+      <div className="line"/><AIConsent onChange={(ready,available)=>{setConsented(ready);setAIAvailable(available);if(available)warmUpAI();}}/>
       {aiAvailable&&<label className="consent-check"><input type="checkbox" checked={useAI} onChange={e=>setUseAI(e.target.checked)}/> Use AI for this interview (requires permission above)</label>}
       {aiOn&&!consented&&<p className="ai-needed" role="status">Accept AI processing above to start an AI interview with fresh questions, verdicts and tips, Hindi or Hinglish, voice answers and resume tailoring. Or untick Use AI for a practice interview.</p>}
       {aiOn&&<div className="language-box"><h3>Interview language</h3>
@@ -68,7 +68,7 @@ export function Setup() {
       </div>}
       <p>{aiOn?'AI interview selected.':'Practice selected: curated questions, no AI scoring.'}</p>
       {error&&<div className="alert error" role="alert">{error}</div>}
-      <button type="submit" className="button primary full start-btn" disabled={loading || (aiOn && !consented)}>{loading?(aiOn?'Writing your first question… this can take up to a minute':'Preparing your interview...'):'Start interview'} <ArrowRight size={18}/></button>
+      <button type="submit" className="button primary full start-btn" disabled={loading || (aiOn && !consented)}>{loading?(aiOn?'Writing your first question… this can take a minute or two if the AI model was idle':'Preparing your interview...'):'Start interview'} <ArrowRight size={18}/></button>
     </form><aside className="setup-aside"><div className="card info-card"><span className="info-icon"><Sparkles size={22}/></span><h3>What to expect</h3><div className="info-row"><Target size={18}/><span>Questions matched to your role and level</span></div><div className="info-row"><MessageCircle size={18}/><span>Follow-up questions based on your responses with AI enabled</span></div><div className="info-row"><Clock3 size={18}/><span>Take your time and think through each answer</span></div><div className="info-row"><CircleHelp size={18}/><span>Feedback at the end of your session</span></div></div><div className="hint-box"><BrainCircuit size={18}/><span>Tip: Give specific examples and explain your reasoning, not just the conclusion.</span></div></aside></div>
   </div>;
 }

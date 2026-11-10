@@ -3,11 +3,13 @@
 // (gcloud run services describe interview-iq --region=asia-south1 --format=json > live.json):
 //
 //   candidate  --in live.json --out next.json --revision interview-iq-NAME-SHA [--app-image IMG --commit SHA]
-//              [--voice-image IMG] [--voice-model small] [--env KEY=VALUE]...
+//              [--voice-image IMG] [--voice-model small] [--env KEY=VALUE]... [--split-models yes]
 //     New revision with no traffic, tagged "candidate", and the service maximum raised to 2 so it can start
 //     next to the serving revision (the service normally allows one instance). --voice-image adds or replaces
 //     the speech-to-text sidecar (deploy/whisper, 1 vCPU so Ollama keeps 6 within the 8 vCPU limit) and points
 //     the app at it. --env sets a plain environment variable on the app (never one that holds a secret reference).
+//     --split-models removes the Ollama and speech sidecars once they run as their own scale-to-zero services;
+//     point the app at them with --env LLM_BASE_URL=... TRANSCRIPTION_BASE_URL=... LOCAL_MODEL_AUTH=google.
 //   restore    --in live.json --out next.json
 //     Same template (no new revision), service maximum back to 1.
 //
@@ -36,7 +38,7 @@ const setEnv = (container, name, value) => {
   container.env = [...(container.env ?? []).filter(e => e.name !== name), { name, value }];
 };
 
-export function candidate(live, { revision, appImage, commit, voiceImage, voiceModel = 'small', env = {} }) {
+export function candidate(live, { revision, appImage, commit, voiceImage, voiceModel = 'small', env = {}, splitModels = false }) {
   if (!/^[a-z][a-z0-9-]{0,62}$/.test(revision ?? '') || !revision.startsWith(`${live.metadata.name}-`)) {
     throw new Error(`A valid --revision starting with ${live.metadata.name}- is required.`);
   }
@@ -64,6 +66,13 @@ export function candidate(live, { revision, appImage, commit, voiceImage, voiceM
     }];
     setEnv(app, 'TRANSCRIPTION_MODEL', voiceModel);
     setEnv(app, 'TRANSCRIPTION_BASE_URL', 'http://127.0.0.1:8000/v1');
+  }
+  if (splitModels) {
+    if (voiceImage) throw new Error('--split-models and --voice-image cannot be combined.');
+    if (!env.LLM_BASE_URL || env.LOCAL_MODEL_AUTH !== 'google') throw new Error('--split-models needs --env LLM_BASE_URL=https://... and --env LOCAL_MODEL_AUTH=google.');
+    if (app.env?.some(e => e.name === 'TRANSCRIPTION_MODEL') && !env.TRANSCRIPTION_BASE_URL) throw new Error('Voice is on: also pass --env TRANSCRIPTION_BASE_URL=https://....');
+    template.spec.containers = template.spec.containers.filter(c => c.name === 'app');
+    delete template.metadata.annotations['run.googleapis.com/container-dependencies'];
   }
   for (const c of template.spec.containers) {
     if (!validCpu(Number(c.resources?.limits?.cpu ?? 1))) throw new Error(`Container ${c.name} asks for ${c.resources.limits.cpu} vCPU; Cloud Run allows 0.08-1, 2, 4, 6 or 8.`);
@@ -95,7 +104,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const live = JSON.parse(readFileSync(args.get('in'), 'utf8'));
   const { manifest, serving } = mode === 'candidate'
     ? candidate(live, { revision: args.get('revision'), appImage: args.get('app-image'), commit: args.get('commit'),
-      voiceImage: args.get('voice-image'), voiceModel: args.get('voice-model'), env })
+      voiceImage: args.get('voice-image'), voiceModel: args.get('voice-model'), env, splitModels: args.get('split-models') === 'yes' })
     : mode === 'restore' ? restore(live) : (() => { throw new Error('Usage: prepare-release.mjs candidate|restore --in live.json --out next.json ...'); })();
   writeFileSync(args.get('out'), JSON.stringify(manifest, null, 2));
   console.log(`Wrote ${args.get('out')}.${serving ? ` Traffic stays on ${serving}; the new revision is tagged "candidate".` : ''}`);

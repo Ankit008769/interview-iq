@@ -51,6 +51,14 @@ export interface Interview {
   processingError?: string;
   jobNextAttemptAt?: string;
 }
+// Asks the server to start loading its AI models before they are needed; a model that scaled to zero takes about
+// a minute to wake. Fire and forget, at most once every four minutes per tab.
+let lastWarmUp = 0;
+export function warmUpAI() {
+  if (Date.now() - lastWarmUp < 4 * 60_000) return;
+  lastWarmUp = Date.now();
+  api('/interviews/warmup', { method: 'POST' }).catch(() => {});
+}
 export type InterviewLanguage = 'en' | 'hi' | 'hinglish';
 export type InterviewStyle = 'general' | 'product' | 'services' | 'startup';
 export const STYLE_LABELS: Record<InterviewStyle, string> = { general: 'General', product: 'Product company', services: 'IT services', startup: 'Startup' };

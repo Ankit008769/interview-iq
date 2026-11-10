@@ -7,6 +7,7 @@ import OpenAI, { toFile } from 'openai';
 import { z } from 'zod';
 import { zodTextFormat, zodResponseFormat } from 'openai/helpers/zod';
 import { createHash } from 'node:crypto';
+import { signedFetch } from './googleIdentity.js';
 
 export type ModelSlot = 'interviewer' | 'judge';
 export interface GenerationMetadata {
@@ -26,7 +27,8 @@ export interface ModelProvider {
 export function configuredProvider(): ModelProvider | null {
   const config = providerConfig();
   if (config.provider === 'practice') return null;
-  const client = new OpenAI({ apiKey: config.key || 'local-development', baseURL: config.baseURL, timeout: config.timeoutMs, maxRetries: 0 });
+  const client = new OpenAI({ apiKey: config.key || 'local-development', baseURL: config.baseURL, timeout: config.timeoutMs, maxRetries: 0,
+    ...(config.modelAuth === 'google' ? { fetch: signedFetch(new URL(config.baseURL!).origin) } : {}) });
   return {
     async structured<T>(request: StructuredRequest<T>) {
       if (process.env.NODE_ENV === 'production' && !request.usageContext) throw new ConsentRequiredError();
@@ -95,10 +97,12 @@ export function configuredProvider(): ModelProvider | null {
   };
 }
 
-// For the health endpoint: whether the local speech server answers, when voice is configured.
-export async function localVoiceStatus(): Promise<'ready' | 'unavailable' | undefined> {
+// For the health endpoint: whether the local speech server answers, when voice is configured. A speech service
+// that scales to zero is reported as on-demand and never called, so health checks do not keep it running.
+export async function localVoiceStatus(): Promise<'ready' | 'unavailable' | 'on-demand' | undefined> {
   const config = providerConfig();
   if (config.provider !== 'local' || !config.transcriptionModel) return undefined;
+  if (config.modelAuth === 'google') return 'on-demand';
   try {
     const response = await fetch(new URL('/health', config.transcriptionBaseURL).toString(), { signal: AbortSignal.timeout(1500) });
     return response.ok ? 'ready' : 'unavailable';
@@ -106,9 +110,11 @@ export async function localVoiceStatus(): Promise<'ready' | 'unavailable' | unde
 }
 
 // For the health endpoint: whether the local model server answers and has both configured models installed.
-export async function localModelStatus(): Promise<'ready' | 'unavailable' | undefined> {
+// A model service that scales to zero is reported as on-demand and never called, as for speech.
+export async function localModelStatus(): Promise<'ready' | 'unavailable' | 'on-demand' | undefined> {
   const config = providerConfig();
   if (config.provider !== 'local') return undefined;
+  if (config.modelAuth === 'google') return 'on-demand';
   try {
     const response = await fetch(new URL('/api/tags', config.baseURL).toString(), { signal: AbortSignal.timeout(1500) });
     const { models } = await response.json() as { models?: { name: string }[] };
@@ -116,6 +122,29 @@ export async function localModelStatus(): Promise<'ready' | 'unavailable' | unde
     return installed.has(config.interviewerModel) && installed.has(config.judgeModel) ? 'ready' : 'unavailable';
   } catch { return 'unavailable'; }
 }
+
+// Starts loading the local models before they are needed, so the first question after an idle period does not
+// wait for a cold start. Ollama loads a model into memory for a request with an empty prompt; the speech
+// service starts on its health check. Sends no candidate content. At most one warm-up runs per five minutes.
+let lastWarmUp = 0;
+export function warmLocalModels(now = Date.now()): boolean {
+  const config = providerConfig();
+  if (config.provider !== 'local' || now - lastWarmUp < 5 * 60_000) return false;
+  lastWarmUp = now;
+  const origin = new URL(config.baseURL!).origin;
+  const call = config.modelAuth === 'google' ? signedFetch(origin) : fetch;
+  for (const model of new Set([config.interviewerModel, config.judgeModel])) {
+    call(`${origin}/api/generate`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model, keep_alive: -1 }), signal: AbortSignal.timeout(300_000) }).then(r => r.body?.cancel()).catch(() => {});
+  }
+  if (config.transcriptionModel) {
+    const voice = new URL('/health', config.transcriptionBaseURL).toString();
+    const voiceCall = config.modelAuth === 'google' ? signedFetch(new URL(config.transcriptionBaseURL!).origin) : fetch;
+    voiceCall(voice, { signal: AbortSignal.timeout(120_000) }).then(r => r.body?.cancel()).catch(() => {});
+  }
+  return true;
+}
+export const resetWarmUp = () => { lastWarmUp = 0; };
 
 const audioExtensions: Record<string, string> = { 'audio/webm': 'webm', 'audio/ogg': 'ogg', 'audio/mp4': 'm4a', 'audio/mpeg': 'mp3', 'audio/wav': 'wav' };
 
@@ -126,7 +155,8 @@ export async function transcribeAudio(audio: Buffer, mimeType: string, usageCont
   const config = providerConfig();
   if (!config.transcriptionModel) throw new Error('Transcription is not configured.');
   const consent = await requireAIConsent(usageContext.userId);
-  const client = new OpenAI({ apiKey: config.key || 'local-development', baseURL: config.transcriptionBaseURL, timeout: config.transcriptionTimeoutMs, maxRetries: 0 });
+  const client = new OpenAI({ apiKey: config.key || 'local-development', baseURL: config.transcriptionBaseURL, timeout: config.transcriptionTimeoutMs, maxRetries: 0,
+    ...(config.modelAuth === 'google' ? { fetch: signedFetch(new URL(config.transcriptionBaseURL!).origin) } : {}) });
   const started = Date.now();
   // Persist before calling the vendor, as for text generation.
   const attempt = await AIUsage.create({ ...usageContext, consentVersion: consent.version, provider: config.provider,

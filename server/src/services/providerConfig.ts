@@ -1,15 +1,20 @@
-// "local" is an open-weight model served on this machine (for example by Ollama) through its
-// OpenAI-compatible API. Nothing leaves the server, and CPU inference needs longer timeouts.
+// "local" is an open-weight model served by Interview IQ itself (for example Ollama) through its OpenAI-compatible
+// API: on this machine, or (LOCAL_MODEL_AUTH=google) in Interview IQ's own private Cloud Run service that scales
+// to zero, called with the app service account's identity token. Nothing goes to an outside AI company, and CPU
+// inference needs longer timeouts.
 export const LOCAL_DEFAULT_URL = 'http://127.0.0.1:11434/v1';
 export const LOCAL_DEFAULT_MODEL = 'qwen3.5:4b';
 // Local speech-to-text (deploy/whisper) has its own server; hosted providers share the LLM endpoint.
 export const LOCAL_TRANSCRIPTION_URL = 'http://127.0.0.1:8000/v1';
 const loopbackHosts = ['localhost', '127.0.0.1', '[::1]'];
+// A model or speech service of our own on Cloud Run: HTTPS on run.app, admitting only the app's service account.
+const ownCloudRunService = (url: URL, auth: string) => auth === 'google' && url.protocol === 'https:' && url.hostname.endsWith('.run.app');
 
 export function providerConfig() {
   const provider = process.env.AI_PROVIDER || (process.env.OPENAI_API_KEY ? 'openai' : 'practice');
   if (!['practice', 'openai', 'compatible', 'local'].includes(provider)) throw new Error('Invalid AI_PROVIDER.');
   const local = provider === 'local';
+  const modelAuth = local && process.env.LOCAL_MODEL_AUTH === 'google' ? 'google' : 'none';
   const key = provider === 'openai' ? process.env.OPENAI_API_KEY : provider === 'compatible' ? process.env.LLM_GATEWAY_TOKEN : undefined;
   if (provider === 'openai' && !key) throw new Error('OpenAI provider credentials are missing.');
   const baseURL = provider === 'compatible' ? process.env.LLM_BASE_URL : local ? process.env.LLM_BASE_URL || LOCAL_DEFAULT_URL
@@ -20,8 +25,10 @@ export function providerConfig() {
     if (url.username || url.password || url.search || url.hash || (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback))) {
       throw new Error('LLM_BASE_URL must be HTTPS (HTTP is allowed only on loopback) without embedded credentials.');
     }
-    if (local && !loopback) throw new Error('A local model must be served on this machine (localhost).');
-    if (!loopback && !key) throw new Error('Remote compatible providers require LLM_GATEWAY_TOKEN.');
+    if (local && !loopback && !ownCloudRunService(url, modelAuth)) {
+      throw new Error('A local model must be served on this machine (localhost) or by an Interview IQ Cloud Run service with LOCAL_MODEL_AUTH=google.');
+    }
+    if (!local && !loopback && !key) throw new Error('Remote compatible providers require LLM_GATEWAY_TOKEN.');
     if (!local && (!process.env.INTERVIEWER_MODEL || !process.env.JUDGE_MODEL)) throw new Error('Compatible providers require explicit interviewer and judge models.');
   }
   // AI_MODEL is the OpenAI fallback and never names a local model.
@@ -34,13 +41,16 @@ export function providerConfig() {
   // Voice answers stay off until a transcription model is chosen explicitly, so no audio cost is a surprise.
   const transcriptionModel = provider === 'practice' ? undefined : process.env.TRANSCRIPTION_MODEL || undefined;
   const transcriptionBaseURL = local ? process.env.TRANSCRIPTION_BASE_URL || LOCAL_TRANSCRIPTION_URL : baseURL;
-  if (local && transcriptionModel && !loopbackHosts.includes(new URL(transcriptionBaseURL!).hostname)) {
-    throw new Error('Local speech-to-text must be served on this machine (localhost).');
+  if (local && transcriptionModel) {
+    const url = new URL(transcriptionBaseURL!);
+    if (!loopbackHosts.includes(url.hostname) && !ownCloudRunService(url, modelAuth)) {
+      throw new Error('Local speech-to-text must be served on this machine (localhost) or by an Interview IQ Cloud Run service with LOCAL_MODEL_AUTH=google.');
+    }
   }
   // CPU transcription of a five-minute answer can take a few minutes.
   const transcriptionTimeoutMs = Number(process.env.TRANSCRIPTION_TIMEOUT_MS || (local ? 300_000 : 60_000));
   if (!Number.isSafeInteger(transcriptionTimeoutMs) || transcriptionTimeoutMs < 5_000 || transcriptionTimeoutMs > 600_000) throw new Error('TRANSCRIPTION_TIMEOUT_MS must be between 5000 and 600000.');
-  return { provider, key, transcriptionModel, baseURL, interviewerModel, judgeModel, timeoutMs, transcriptionBaseURL, transcriptionTimeoutMs };
+  return { provider, key, modelAuth, transcriptionModel, baseURL, interviewerModel, judgeModel, timeoutMs, transcriptionBaseURL, transcriptionTimeoutMs };
 }
 
 // Work leases outlast the slowest allowed model call, so a slow local model is never claimed twice.

@@ -245,8 +245,6 @@ resource "google_cloud_run_v2_service" "app" {
     containers {
       name  = var.app_container_name
       image = var.container_image
-      # With local models, the app starts after its sidecars answer.
-      depends_on = concat(var.model_image == "" ? [] : ["ollama"], var.voice_image == "" ? [] : ["whisper"])
       ports {
         container_port = 8080
       }
@@ -293,59 +291,8 @@ resource "google_cloud_run_v2_service" "app" {
       }
     }
 
-    # Ollama with the interview model baked in (deploy/ollama), reachable only on localhost inside the instance.
-    # See docs/LOCAL_MODELS.md. An empty model_image removes the sidecar.
-    dynamic "containers" {
-      for_each = var.model_image == "" ? [] : [var.model_image]
-      content {
-        name  = "ollama"
-        image = containers.value
-        resources {
-          limits = {
-            cpu    = var.model_cpu
-            memory = var.model_memory
-          }
-          cpu_idle          = false
-          startup_cpu_boost = true
-        }
-        startup_probe {
-          http_get {
-            path = "/api/version"
-            port = 11434
-          }
-          period_seconds    = 5
-          timeout_seconds   = 3
-          failure_threshold = 60
-        }
-      }
-    }
-
-    # faster-whisper speech-to-text (deploy/whisper) for voice answers; the app's TRANSCRIPTION_* env points at
-    # http://127.0.0.1:8000/v1. An empty voice_image removes it.
-    dynamic "containers" {
-      for_each = var.voice_image == "" ? [] : [var.voice_image]
-      content {
-        name  = "whisper"
-        image = containers.value
-        resources {
-          limits = {
-            cpu    = var.voice_cpu
-            memory = var.voice_memory
-          }
-          cpu_idle          = false
-          startup_cpu_boost = true
-        }
-        startup_probe {
-          http_get {
-            path = "/health"
-            port = 8000
-          }
-          period_seconds    = 5
-          timeout_seconds   = 3
-          failure_threshold = 60
-        }
-      }
-    }
+    # The models run as their own services that scale to zero (models.tf); the app reaches them over HTTPS
+    # with its service account's identity token (LOCAL_MODEL_AUTH=google).
   }
 
   # Releases own image, build metadata, and all environment variables (including

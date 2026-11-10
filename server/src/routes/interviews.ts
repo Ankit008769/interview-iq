@@ -10,7 +10,7 @@ import { AuthRequest, requireAuth } from '../middleware/auth.js';
 import { checkStar, generateQuestion, interviewMode, rewriteAnswer } from '../services/ai.js';
 import { consumeAIQuota, consumeQuota, quotaLimit } from '../services/quotas.js';
 import { MAX_CHALLENGES_PER_INTERVIEW } from '../services/challenges.js';
-import { providerConfig, transcribeAudio } from '../services/modelProvider.js';
+import { providerConfig, transcribeAudio, warmLocalModels } from '../services/modelProvider.js';
 import { randomUUID } from 'node:crypto';
 import { groundingDocuments, removeDerivedQuestions } from '../services/documents.js';
 import { analyzeDelivery } from '../services/delivery.js';
@@ -69,6 +69,13 @@ const timerLimit: RequestHandler = async (req, _res, next) => {
 const view = (doc: InstanceType<typeof Interview>) => ({ interview: doc, mode: doc.mode ?? interviewMode(), serverNow: new Date() });
 
 router.get('/mode', (_req, res) => res.json({ mode: interviewMode(), transcription: Boolean(providerConfig().transcriptionModel) }));
+// Opening setup, Learn or a coding problem starts loading the local models, so a model that scaled to zero is
+// ready by the time a question is needed. Sends no candidate content, so it needs no AI permission.
+const warmUpLimit: RequestHandler = async (req, _res, next) => {
+  try { await consumeQuota(userId(req), 'model warm-ups', 20, 900_000); next(); }
+  catch (err) { next(err); }
+};
+router.post('/warmup', warmUpLimit, (_req, res) => { res.status(202).json({ started: warmLocalModels() }); });
 // Turns one spoken answer into text for the candidate to review and edit; the recording is never stored.
 router.post('/:id/transcribe', aiLimit, audioBody, async (req, res, next) => {
   try {

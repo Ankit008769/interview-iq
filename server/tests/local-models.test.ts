@@ -88,9 +88,9 @@ it('reports whether the local models are installed in the health check', async (
   vi.stubEnv('AI_PROVIDER', 'local');
 });
 
-it('tells users their answers stay on the Interview IQ server', async () => {
+it('tells users their answers stay on Interview IQ servers', async () => {
   const { disclosure } = (await owner.get('/api/account/ai-consent').expect(200)).body;
-  expect(disclosure).toMatchObject({ policy: '2026-10-25.local.v1', interviewerModel: 'qwen3.5:4b', judgeModel: 'qwen3.5:4b' });
+  expect(disclosure).toMatchObject({ policy: '2026-11-10.local.v2', interviewerModel: 'qwen3.5:4b', judgeModel: 'qwen3.5:4b' });
   expect(disclosure.description).toMatch(/not sent to an outside AI company/);
   expect(JSON.stringify(disclosure)).not.toMatch(/127\.0\.0\.1|follow its terms/);
   await owner.post('/api/account/ai-consent').send({ version: disclosure.version, accepted: true }).expect(200);
@@ -204,7 +204,7 @@ it('transcribes voice answers on the local speech server and reports its readine
   try {
     expect(providerConfig()).toMatchObject({ transcriptionBaseURL: url, transcriptionTimeoutMs: 300_000 });
     const { disclosure } = (await owner.get('/api/account/ai-consent').expect(200)).body;
-    expect(disclosure.voice).toMatch(/transcribed on the Interview IQ server and then discarded/);
+    expect(disclosure.voice).toMatch(/transcribed on Interview IQ servers and then discarded/);
     await owner.post('/api/account/ai-consent').send({ version: disclosure.version, accepted: true }).expect(200);
     expect((await request(app).get('/api/health').expect(200)).body).toMatchObject({ model: 'ready', voice: 'ready' });
     const id = (await start().expect(201)).body.interview._id;

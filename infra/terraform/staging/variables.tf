@@ -144,37 +144,37 @@ variable "app_container_name" {
 }
 
 variable "model_image" {
-  description = "Ollama sidecar image with the interview model baked in (deploy/ollama). Empty removes the sidecar."
+  description = "Ollama image with the interview model baked in (deploy/ollama), run as its own scale-to-zero service."
   type        = string
   default     = "asia-south1-docker.pkg.dev/project-12b39f1f-9d49-456e-957/cloud-run-source-deploy/interview-iq-ollama:0.40.11-qwen3.5-4b-v2"
 }
 
 variable "model_cpu" {
-  description = "vCPUs for the model sidecar (Cloud Run allows 0.08-1, 2, 4, 6 or 8). App plus sidecars must stay within 8 vCPUs per instance."
+  description = "vCPUs for the model service (Cloud Run allows 0.08-1, 2, 4, 6 or 8). Billed only while requests run."
   type        = string
-  default     = "6"
+  default     = "8"
 }
 
 variable "model_memory" {
-  description = "Memory for the model sidecar: model weights (~3.5 GB) plus a 16K-token context."
+  description = "Memory for the model service: model weights (~3.5 GB) plus a 16K-token context."
   type        = string
   default     = "8Gi"
 }
 
 variable "voice_image" {
-  description = "faster-whisper speech-to-text sidecar image (deploy/whisper). Empty removes the sidecar."
+  description = "faster-whisper speech-to-text image (deploy/whisper), run as its own scale-to-zero service. Empty removes voice."
   type        = string
   default     = "asia-south1-docker.pkg.dev/project-12b39f1f-9d49-456e-957/cloud-run-source-deploy/interview-iq-whisper:1.2.1-small"
 }
 
 variable "voice_cpu" {
-  description = "vCPUs for the speech-to-text sidecar; 1 leaves Ollama its 6 within the 8 vCPU limit."
+  description = "vCPUs for the speech-to-text service. Billed only while requests run."
   type        = string
-  default     = "1"
+  default     = "2"
 }
 
 variable "voice_memory" {
-  description = "Memory for the speech-to-text sidecar (small model, int8)."
+  description = "Memory for the speech-to-text service (small model, int8)."
   type        = string
   default     = "2Gi"
 }
@@ -231,4 +231,19 @@ variable "runner_subnet_name" {
 variable "runner_subnet_cidr" {
   type    = string
   default = "10.80.0.0/26"
+}
+
+variable "models_service_account_id" {
+  type    = string
+  default = "interviewiq-models"
+}
+
+variable "model_service_name" {
+  type    = string
+  default = "interview-iq-ollama"
+}
+
+variable "voice_service_name" {
+  type    = string
+  default = "interview-iq-whisper"
 }

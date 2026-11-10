@@ -138,3 +138,29 @@ import {
   to = google_cloud_run_v2_service_iam_member.runner_app_invoker
   id = "projects/${local.p}/locations/${var.region}/services/${var.runner_service_name} roles/run.invoker serviceAccount:${var.app_service_account_id}@${local.p}.iam.gserviceaccount.com"
 }
+
+# Open model services (scale to zero), created with gcloud when staging billing returns; see docs/LOCAL_MODELS.md.
+import {
+  to = google_service_account.models
+  id = "projects/${local.p}/serviceAccounts/${var.models_service_account_id}@${local.p}.iam.gserviceaccount.com"
+}
+
+import {
+  to = google_cloud_run_v2_service.model
+  id = "projects/${local.p}/locations/${var.region}/services/${var.model_service_name}"
+}
+
+import {
+  to = google_cloud_run_v2_service.voice[0]
+  id = "projects/${local.p}/locations/${var.region}/services/${var.voice_service_name}"
+}
+
+import {
+  to = google_cloud_run_v2_service_iam_member.model_app_invoker
+  id = "projects/${local.p}/locations/${var.region}/services/${var.model_service_name} roles/run.invoker serviceAccount:${var.app_service_account_id}@${local.p}.iam.gserviceaccount.com"
+}
+
+import {
+  to = google_cloud_run_v2_service_iam_member.voice_app_invoker[0]
+  id = "projects/${local.p}/locations/${var.region}/services/${var.voice_service_name} roles/run.invoker serviceAccount:${var.app_service_account_id}@${local.p}.iam.gserviceaccount.com"
+}

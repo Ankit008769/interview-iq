@@ -11,15 +11,15 @@ export function aiDisclosure() {
   const endpoint = config.provider === 'openai' ? 'https://api.openai.com' : new URL(config.baseURL!).origin;
   // An open model on Interview IQ's own server: nothing goes to an outside AI company.
   if (config.provider === 'local') return fingerprint({
-    policy: '2026-10-25.local.v1', provider: 'Open model on the Interview IQ server', endpoint: 'Interview IQ server (not shared with an AI company)',
+    policy: '2026-11-10.local.v2', provider: 'Open models on Interview IQ servers', endpoint: 'Interview IQ servers (not shared with an AI company)',
     interviewerModel: config.interviewerModel, judgeModel: config.judgeModel,
-    description: 'Your role, topic, interview questions and saved answers are processed by open-weight AI models running on the Interview IQ server to generate questions and coaching feedback. They are not sent to an outside AI company. Avoid entering secrets or sensitive personal information.',
-    documents: 'If you choose a resume or job description for an AI interview, its full text is processed the same way, on the Interview IQ server, to tailor your questions.',
+    description: 'Your role, topic, interview questions and saved answers are processed by open-weight AI models running on Interview IQ servers to generate questions and coaching feedback. They are not sent to an outside AI company. Avoid entering secrets or sensitive personal information.',
+    documents: 'If you choose a resume or job description for an AI interview, its full text is processed the same way, on Interview IQ servers, to tailor your questions.',
     retention: 'The models keep nothing between requests. Interview IQ retains your saved interviews until deletion.',
     withdrawal: 'You can withdraw permission in Account. This stops future AI processing, including queued work. Practice mode uses curated questions with no AI processing.',
     ...(config.transcriptionModel ? { transcriptionModel: config.transcriptionModel,
-      voice: 'If you answer by voice, your recording is transcribed on the Interview IQ server and then discarded; only the text you review and submit is saved.' } : {}),
-    ...(runnerConfigured() ? { coding: 'In the coding lab, your code runs in a separate sandbox with no network access and no AI. If you ask for the interviewer follow-up, your code and your explanation are processed by the same open models on the Interview IQ server.' } : {}),
+      voice: 'If you answer by voice, your recording is transcribed on Interview IQ servers and then discarded; only the text you review and submit is saved.' } : {}),
+    ...(runnerConfigured() ? { coding: 'In the coding lab, your code runs in a separate sandbox with no network access and no AI. If you ask for the interviewer follow-up, your code and your explanation are processed by the same open models on Interview IQ servers.' } : {}),
   }, config.baseURL);
   const value = {
     policy: '2026-10-25.v2', provider: config.provider === 'openai' ? 'OpenAI' : (process.env.LLM_PROVIDER_NAME || 'Configured AI gateway'), endpoint,
