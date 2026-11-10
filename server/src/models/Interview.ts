@@ -13,9 +13,14 @@ export const INTERVIEW_STYLES = ['general', 'product', 'services', 'startup'] as
 export type InterviewStyle = typeof INTERVIEW_STYLES[number];
 // Which of the candidate's documents a question was generated from, and the passage it is based on when
 // that passage was found verbatim. Deleting a document removes every question that lists it.
+// In a project-defense interview, the code a question is about: the app chooses the function or class and keeps
+// the redacted excerpt shown with the question. referenced says whether the model named it or the app added it.
+export type CodeReference = { projectId: mongoose.Types.ObjectId; path: string; symbol: string; kind: string; startLine: number; endLine: number;
+  excerpt: string; referenced: 'model' | 'added' };
 export type QuestionGrounding = {
   documentIds: mongoose.Types.ObjectId[];
   source?: { documentId: mongoose.Types.ObjectId; kind: 'resume' | 'job_description'; quote: string; start: number; end: number };
+  code?: CodeReference;
 };
 export type AnswerTurn = {
   submissionId?: string;
@@ -103,6 +108,7 @@ export interface IInterview {
   currentQuestionGeneration?: GenerationMetadata;
   currentQuestionGrounding?: QuestionGrounding;
   documentIds: mongoose.Types.ObjectId[];
+  projectId?: mongoose.Types.ObjectId;
   language: InterviewLanguage;
   style: InterviewStyle;
   purpose: 'interview' | 'drill';
@@ -172,6 +178,8 @@ const groundingSchema = new Schema<QuestionGrounding>({
   source: { type: new Schema({ documentId: { type: Schema.Types.ObjectId, required: true },
     kind: { type: String, enum: ['resume', 'job_description'], required: true },
     quote: { type: String, required: true }, start: Number, end: Number }, { _id: false }) },
+  code: { type: new Schema({ projectId: { type: Schema.Types.ObjectId, required: true }, path: { type: String, required: true }, symbol: { type: String, required: true },
+    kind: String, startLine: Number, endLine: Number, excerpt: { type: String, maxlength: 12000 }, referenced: { type: String, enum: ['model', 'added'] } }, { _id: false }) },
 }, { _id: false });
 const turnSchema = new Schema<AnswerTurn>({
   submissionId: { type: String },
@@ -223,6 +231,7 @@ const interviewSchema = new Schema<IInterview>({
   currentQuestionGeneration: { type: generationSchema },
   currentQuestionGrounding: { type: groundingSchema },
   documentIds: { type: [Schema.Types.ObjectId], default: [] },
+  projectId: { type: Schema.Types.ObjectId },
   language: { type: String, enum: INTERVIEW_LANGUAGES, default: 'en' },
   style: { type: String, enum: INTERVIEW_STYLES, default: 'general' },
   purpose: { type: String, enum: ['interview', 'drill'], default: 'interview' },

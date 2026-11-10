@@ -16,8 +16,8 @@ test('a resume tailors AI questions with a visible source line, and deleting it 
     expect(consent.disclosure.documents).toMatch(/resume or job description/);
     expect((await page.request.post('/api/account/ai-consent', { data: { version: consent.disclosure.version, accepted: true } })).status()).toBe(200);
 
-    await page.getByRole('link', { name: 'Resume & JD' }).first().click();
-    await expect(page.getByRole('heading', { name: 'Resume & job descriptions' })).toBeVisible();
+    await page.getByRole('link', { name: 'Resume & code' }).first().click();
+    await expect(page.getByRole('heading', { name: 'Resume, job descriptions and code' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Resume', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await page.getByLabel('Title').fill('Resume, October 2026');
     await page.getByLabel('Text', { exact: true }).fill(resume);

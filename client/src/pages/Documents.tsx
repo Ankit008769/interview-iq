@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { FileText, Trash2 } from 'lucide-react';
 import { api, type CandidateDocument, type DocumentKind } from '../lib/api';
 import { kindLabel } from '../components/Grounding';
+import { ProjectsSection } from '../components/Projects';
 type Limits = { maxDocuments: number; maxChars: number };
 export function Documents() {
   const [documents, setDocuments] = useState<CandidateDocument[]>(); const [limits, setLimits] = useState<Limits>({ maxDocuments: 10, maxChars: 12000 });
@@ -31,8 +32,8 @@ export function Documents() {
     catch (err) { setError((err as Error).message); } finally { setBusy(false); }
   }
   const full = !!documents && documents.length >= limits.maxDocuments;
-  return <div className="account-page documents-page page-enter"><h1>Resume & job descriptions</h1>
-    <p>Paste your resume or a job description to get AI interview questions about your own projects and the role's requirements. Each tailored question shows the line it came from.</p>
+  return <div className="account-page documents-page page-enter"><h1>Resume, job descriptions and code</h1>
+    <p>Paste your resume or a job description to get AI interview questions about your own projects and the role's requirements. Each tailored question shows the line it came from. Upload a project's code for a project-defense interview about your own files and functions.</p>
     {error && <div className="alert error" role="alert">{error}</div>}
     {message && <p role="status">{message}</p>}
     <section className="account-card"><h2>Add a document</h2>
@@ -59,5 +60,6 @@ export function Documents() {
             <button type="button" className="button secondary" disabled={busy} onClick={() => setConfirming(null)}>Cancel</button></div>}
         </li>)}</ul>}
     </section>
+    <ProjectsSection/>
   </div>;
 }

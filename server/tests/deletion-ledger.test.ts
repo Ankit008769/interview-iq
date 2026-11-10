@@ -15,6 +15,7 @@ import { writeDeletionReceipt } from '../src/services/deletionLedger.js';
 import { parseReceipt, reconcileDeletions, readDeletionLedger, validateRestoreTarget } from '../src/services/deletionRestore.js';
 import { SkillState, StudyPlan } from '../src/models/Learning.js';
 import { CodeRun } from '../src/models/CodeRun.js';
+import { Project } from '../src/models/Project.js';
 process.env.JWT_SECRET = 'ledger-test-secret-longer-than-thirty-two-characters';
 process.env.CLIENT_ORIGIN = 'http://localhost:5173';
 const { app } = await import('../src/app.js');
@@ -84,6 +85,8 @@ it('reconciles a pre-deletion restore, preserves other users, removes late write
   await StudyPlan.create([{ userId: a.id, ...plan }, { userId: b.id, ...plan }]);
   const codeRun = { problemId: 'two-sum', language: 'python', mode: 'run', source: 'x = 1', verdict: 'accepted', passed: 3, total: 3, tests: [] };
   await CodeRun.create([{ userId: a.id, ...codeRun }, { userId: b.id, ...codeRun }]);
+  const project = { name: 'Chat', files: [], skipped: { ignoredFolder: 0, binaryOrOther: 0, tooLarge: 0, secretFile: 0, overLimit: 0 } };
+  await Project.create([{ userId: a.id, ...project }, { userId: b.id, ...project }]);
   await AccountToken.create({ userId: b.id, tokenHash: 'test-hash', version: 0, purpose: 'reset', expiresAt: new Date(Date.now() + 60000) });
   const db = mongoose.connection.db!;
   const receipts = [{ version: 1 as const, userId: a.id, requestedAt: at }];
@@ -91,7 +94,7 @@ it('reconciles a pre-deletion restore, preserves other users, removes late write
   expect(await User.findById(a.id)).toBeNull(); expect(await User.findById(b.id)).not.toBeNull();
   expect(await AIUsage.countDocuments({ userId: a.id })).toBe(0); expect(await AIUsage.countDocuments({ userId: b.id })).toBe(1);
   expect(await CandidateDocument.countDocuments({ userId: a.id })).toBe(0); expect(await CandidateDocument.countDocuments({ userId: b.id })).toBe(1);
-  for (const model of [SkillState, StudyPlan, CodeRun] as any[]) { expect(await model.countDocuments({ userId: a.id })).toBe(0); expect(await model.countDocuments({ userId: b.id })).toBe(1); }
+  for (const model of [SkillState, StudyPlan, CodeRun, Project] as any[]) { expect(await model.countDocuments({ userId: a.id })).toBe(0); expect(await model.countDocuments({ userId: b.id })).toBe(1); }
   expect(await AuthSession.countDocuments()).toBe(0); expect(await AccountToken.countDocuments()).toBe(0);
   await AIUsage.create({ userId: a.id }); await reconcileDeletions(db, receipts); expect(await AIUsage.countDocuments({ userId: a.id })).toBe(0);
 });

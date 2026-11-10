@@ -7,7 +7,7 @@ const nav = [
   { to: '/learn', label: 'Learn', Icon: GraduationCap },
   { to: '/coding', label: 'Coding', Icon: Code2 },
   { to: '/interview/new', label: 'New interview', Icon: PlusCircle },
-  { to: '/documents', label: 'Resume & JD', Icon: FileText },
+  { to: '/documents', label: 'Resume & code', Icon: FileText },
   { to: '/account', label: 'Account', Icon: UserRound },
   { to: '/history', label: 'My interviews', Icon: History },
 ];

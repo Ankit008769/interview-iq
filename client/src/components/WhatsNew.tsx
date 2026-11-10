@@ -18,7 +18,7 @@ export function WhatsNew() {
     { icon: <ListChecks size={18}/>, title: 'A verdict for every answer', text: 'Correct, partly correct or not answered, what a strong answer covers, one tip, and an overall score.' },
     { icon: <Languages size={18}/>, title: 'Hindi and Hinglish (beta)', text: 'Choose the interview language in setup; questions and feedback follow it.' },
     ...(state.voice ? [{ icon: <AudioLines size={18}/>, title: 'Answer by voice', text: 'Speak your answer; it is transcribed on our server, then you review the text. Pace and filler-word feedback included.' }] : []),
-    { icon: <FileText size={18}/>, title: 'Tailor to your resume or a JD', text: 'Add one under Resume & JD and choose it in setup.' },
+    { icon: <FileText size={18}/>, title: 'Tailor to your resume, a JD or your code', text: 'Add them under Resume & code: choose a resume or JD in setup, or upload a project for a project-defense interview.' },
     { icon: <Sparkles size={18}/>, title: 'STAR checks and stronger versions', text: 'For finished AI interviews: see which STAR parts you covered and a rewrite built from your own words.' },
   ];
   return <section className="card whats-new" aria-label="New in AI interviews">

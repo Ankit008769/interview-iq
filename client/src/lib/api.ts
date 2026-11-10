@@ -1,6 +1,7 @@
 export interface User { id: string; name: string; email: string; emailVerified?: boolean; preferences?: { deliveryMetrics: boolean } }
 export type DocumentKind = 'resume' | 'job_description';
-export interface QuestionGrounding { documentIds: string[]; source?: { documentId: string; kind: DocumentKind; quote: string; start: number; end: number } }
+export interface CodeReference { projectId: string; path: string; symbol: string; kind: string; startLine: number; endLine: number; excerpt: string; referenced: 'model' | 'added' }
+export interface QuestionGrounding { documentIds: string[]; source?: { documentId: string; kind: DocumentKind; quote: string; start: number; end: number }; code?: CodeReference }
 export interface CandidateDocument { id: string; kind: DocumentKind; title: string; chars: number; createdAt: string; deleting?: boolean; text?: string }
 export interface Turn { question: string; answer: string; topic: string; answeredAt: string; elapsedSeconds?: number; pausedSeconds?: number; overTime?: boolean; grounding?: QuestionGrounding }
 export interface Feedback {
@@ -132,3 +133,14 @@ export interface CodeRun extends CodeRunSummary {
   problemId: string; problemTitle?: string; source: string; tests: CodeTest[]; output: string; message?: string; runMs?: number; compileMs?: number;
   followUp?: { question: string; askedAt: string; answer?: string; answeredAt?: string; review?: { criteria: CriterionRating[]; summary: string; createdAt: string } };
 }
+// Project defense (C4): uploaded code, stored only after secret redaction and never run.
+export interface ProjectStats { files: number; lines: number; bytes: number; symbols: number; dependencies: number; languages: { language: string; files: number }[] }
+export interface SecretFinding { path: string; line: number; kind: string }
+export interface ProjectSummary { id: string; name: string; createdAt: string; deleting: boolean; stats: ProjectStats;
+  skipped: { ignoredFolder: number; binaryOrOther: number; tooLarge: number; secretFile: number; overLimit: number }; secrets: SecretFinding[]; secretFiles: string[] }
+export interface CodeSymbol { name: string; kind: 'function' | 'method' | 'class' | 'component' | 'route'; path: string; line: number; endLine: number }
+export interface ClaimEvidence { path: string; line: number; kind: 'dependency' | 'symbol' | 'file' | 'text'; text: string }
+export interface ClaimCheck { documentId: string; documentTitle: string; dropped: number; createdAt: string;
+  claims: { quote: string; keywords: string[]; status: 'supported' | 'partial' | 'not_found'; evidence: ClaimEvidence[] }[] }
+export interface ProjectDetail extends ProjectSummary { files: { path: string; language: string; lines: number; size: number }[]; symbols: CodeSymbol[];
+  dependencies: { name: string; version?: string; source: string }[]; claimChecks: ClaimCheck[] }

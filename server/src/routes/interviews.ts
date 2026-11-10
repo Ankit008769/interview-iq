@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto';
 import { groundingDocuments, removeDerivedQuestions } from '../services/documents.js';
 import { analyzeDelivery } from '../services/delivery.js';
 import { SKILL_BY_ID } from '../learning/skills.js';
+import { liveProject, removeProjectQuestions } from '../projects/service.js';
 
 // Accepted recording formats, each checked against its leading bytes rather than trusting the header.
 const audioSignatures: Record<string, (b: Buffer) => boolean> = {
@@ -43,6 +44,7 @@ const makeSchema = z.object({
   style: z.enum(INTERVIEW_STYLES).optional(),
   purpose: z.enum(['interview', 'drill']).optional(),
   focusSkills: z.array(z.string().max(40)).max(2).optional(),
+  projectId: z.string().regex(/^[a-f0-9]{24}$/).optional(),
 });
 const answerSchema = z.object({
   answer: z.string().trim().min(10).max(3500),
@@ -161,7 +163,7 @@ router.post('/', aiLimit, async (req, res, next) => {
   try {
     const parsed = makeSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: 'Choose a valid role, topic, type, difficulty and number of questions.' }); return; }
-    const { documentIds: requested = [], ...fields } = parsed.data;
+    const { documentIds: requested = [], projectId, ...fields } = parsed.data;
     const input = { ...fields, mode: fields.mode || interviewMode() };
     const ids = [...new Set(requested)];
     const documents = ids.length ? await groundingDocuments(userId(req), ids) : [];
@@ -172,6 +174,10 @@ router.post('/', aiLimit, async (req, res, next) => {
     if ((input.purpose === 'drill' || input.focusSkills?.length || (input.style && input.style !== 'general')) && input.mode !== 'ai') {
       res.status(400).json({ error: 'Drills and interview styles need AI mode.' }); return;
     }
+    // Project defense asks about the candidate's own uploaded code, so it needs the AI interviewer.
+    const project = projectId ? await liveProject(userId(req), projectId) : null;
+    if (projectId && (input.mode !== 'ai' || input.type !== 'Technical')) { res.status(400).json({ error: 'Project defense needs an AI technical interview.' }); return; }
+    if (projectId && !project) { res.status(400).json({ error: 'Choose one of your uploaded projects.' }); return; }
     const focusSkills = [...new Set(input.focusSkills ?? [])];
     if (focusSkills.some(id => SKILL_BY_ID.get(id)?.type !== input.type)) { res.status(400).json({ error: 'Choose practice skills that match the interview type.' }); return; }
     if (documents.length !== ids.length) { res.status(400).json({ error: 'Choose documents from your saved resumes and job descriptions.' }); return; }
@@ -180,14 +186,18 @@ router.post('/', aiLimit, async (req, res, next) => {
     await consumeQuota(userId(req), 'daily interview starts', quotaLimit('INTERVIEWS_PER_DAY', 20), 86400_000);
     if (input.mode === 'ai') await consumeAIQuota(userId(req));
     const id = new mongoose.Types.ObjectId();
-    const first = await generateQuestion({ ...input, focusSkills, documents, usageContext: { userId: userId(req), interviewId: id.toString() }, turnIndex: 0, history: [] });
+    const first = await generateQuestion({ ...input, focusSkills, documents, project: project ?? undefined, usageContext: { userId: userId(req), interviewId: id.toString() }, turnIndex: 0, history: [] });
     if (!await User.exists({ _id: userId(req), deletionRequestedAt: { $exists: false } })) { res.sendStatus(401); return; }
-    let doc = await Interview.create({ _id: id, userId: userId(req), ...input, focusSkills, documentIds: documents.map(d => d.id), status: 'in_progress', currentQuestion: first.question, currentTopic: first.topic, currentQuestionId: first.questionId, currentQuestionGeneration: first.generation, currentQuestionGrounding: first.grounding, questionStartedAt: new Date(), pausedMs: 0, turns: [] });
+    let doc = await Interview.create({ _id: id, userId: userId(req), ...input, focusSkills, ...(project ? { projectId: project._id } : {}), documentIds: documents.map(d => d.id), status: 'in_progress', currentQuestion: first.question, currentTopic: first.topic, currentQuestionId: first.questionId, currentQuestionGeneration: first.generation, currentQuestionGrounding: first.grounding, questionStartedAt: new Date(), pausedMs: 0, turns: [] });
     // A document deleted while the first question was generated must not survive in the new interview.
     if (documents.length) {
       const live = new Set((await groundingDocuments(userId(req), ids)).map(d => d.id.toString()));
       const gone = documents.filter(d => !live.has(d.id.toString())).map(d => d.id);
       if (gone.length) { await removeDerivedQuestions(userId(req), gone, id); doc = (await Interview.findById(id))!; }
+    }
+    // Likewise for a project deleted while the first question was written.
+    if (project && !await liveProject(userId(req), project._id)) {
+      await removeProjectQuestions(userId(req), project._id); doc = (await Interview.findById(id))!;
     }
     res.status(201).json(view(doc));
   } catch (err) { next(err); }

@@ -10,6 +10,7 @@ import { User } from '../models/User.js';
 import { groundingDocuments } from './documents.js';
 import { workLeaseMs } from './providerConfig.js';
 import { refreshSkills } from './learning.js';
+import { liveProject } from '../projects/service.js';
 
 export const MAX_JOB_ATTEMPTS = 3;
 const failureMessage = 'Your answer is saved. Processing could not finish. Please retry.';
@@ -43,7 +44,9 @@ export async function processNextInterviewJob(): Promise<boolean> {
     const finished = doc.turns.length >= doc.totalQuestions;
     // Documents never go to the judge; only questions are tailored.
     const documents = finished || doc.mode !== 'ai' ? [] : await groundingDocuments(doc.userId, doc.documentIds ?? []);
-    const question = finished ? undefined : await generateQuestion({ ...context, documents, turnIndex: doc.turns.length });
+    const project = finished || doc.mode !== 'ai' || !doc.projectId ? null : await liveProject(doc.userId, doc.projectId);
+    const question = finished ? undefined : await generateQuestion({ ...context, documents, project: project ?? undefined, turnIndex: doc.turns.length });
+    const codeProject = question?.grounding?.code?.projectId;
     const result = question
       ? { currentQuestion: question.question, currentTopic: question.topic, currentQuestionId: question.questionId,
         currentQuestionGeneration: question.generation, questionStartedAt: new Date(), pausedMs: 0,
@@ -51,11 +54,13 @@ export async function processNextInterviewJob(): Promise<boolean> {
       : { status: 'completed', completedAt: new Date(), feedback: await evaluateInterview(context) };
     // The question clock starts when the next question is ready, so processing time is never counted.
     // A document deleted while this ran is no longer listed, so the write misses and the job requeues without it.
-    const saved = await Interview.updateOne({ ...fence, ...(documents.length ? { documentIds: { $all: documents.map(d => d.id) } } : {}) },
+    // A project deleted while this ran is no longer linked, so the write misses and the job requeues without it.
+    const saved = await Interview.updateOne({ ...fence, ...(documents.length ? { documentIds: { $all: documents.map(d => d.id) } } : {}),
+      ...(codeProject ? { projectId: codeProject } : {}) },
       { $set: { ...result, processingState: 'ready' },
         $unset: { jobLeaseToken: 1, jobLeaseUntil: 1, jobNextAttemptAt: 1, processingError: 1, pausedAt: 1,
           ...(question && !question.grounding ? { currentQuestionGrounding: 1 } : {}) } }, { runValidators: true });
-    if (!saved.matchedCount && documents.length) await Interview.updateOne(fence, { $set: { processingState: 'queued', jobNextAttemptAt: new Date() },
+    if (!saved.matchedCount && (documents.length || codeProject)) await Interview.updateOne(fence, { $set: { processingState: 'queued', jobNextAttemptAt: new Date() },
       $inc: { jobAttempts: -1 }, $unset: { jobLeaseToken: 1, jobLeaseUntil: 1 } });
     // Skill estimates follow from the saved scores; a failed rebuild is retried when the learner next opens Learn.
     if (saved.matchedCount && !question && doc.mode === 'ai') {

@@ -20,6 +20,7 @@ export function aiDisclosure() {
     ...(config.transcriptionModel ? { transcriptionModel: config.transcriptionModel,
       voice: 'If you answer by voice, your recording is transcribed on Interview IQ servers and then discarded; only the text you review and submit is saved.' } : {}),
     ...(runnerConfigured() ? { coding: 'In the coding lab, your code runs in a separate sandbox with no network access and no AI. If you ask for the interviewer follow-up, your code and your explanation are processed by the same open models on Interview IQ servers.' } : {}),
+    projects: 'If you upload a project, files that usually hold credentials are dropped and secrets found in the code are removed before it is saved. Its redacted code is processed by the same open models to ask about your project and to read the claims in a resume you choose. Uploaded code is never run.',
   }, config.baseURL);
   const value = {
     policy: '2026-10-25.v2', provider: config.provider === 'openai' ? 'OpenAI' : (process.env.LLM_PROVIDER_NAME || 'Configured AI gateway'), endpoint,
@@ -33,6 +34,7 @@ export function aiDisclosure() {
     ...(config.transcriptionModel ? { transcriptionModel: config.transcriptionModel,
       voice: 'If you answer by voice, your recording is sent to this provider for transcription. Interview IQ does not store the recording; only the text you review and submit is saved.' } : {}),
     ...(runnerConfigured() ? { coding: 'In the coding lab, your code runs in the Interview IQ sandbox with no network access and no AI. If you ask for the interviewer follow-up, your code and your explanation are sent to this provider.' } : {}),
+    projects: 'If you upload a project, files that usually hold credentials are dropped and secrets found in the code are removed before it is saved. Its redacted code is sent to this provider to ask about your project and to read the claims in a resume you choose. Uploaded code is never run.',
   };
   return fingerprint(value, config.baseURL);
 }

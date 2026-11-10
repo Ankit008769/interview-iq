@@ -8,6 +8,8 @@ export const QUESTION_PROMPT_VERSION = 'interviewer.v3';
 export const GROUNDED_QUESTION_PROMPT_VERSION = 'interviewer-grounded.v2';
 export const STAR_PROMPT_VERSION = 'star-coverage.v1';
 export const CODING_FOLLOWUP_PROMPT_VERSION = 'coding-followup.v1';
+export const PROJECT_QUESTION_PROMPT_VERSION = 'interviewer-project.v1';
+export const PROJECT_CLAIMS_PROMPT_VERSION = 'project-claims.v1';
 export const CODING_REVIEW_PROMPT_VERSION = 'coding-review.v1';
 export const anchors = [
   'Explicit evidence is incorrect, off-topic or contradicts this criterion.',

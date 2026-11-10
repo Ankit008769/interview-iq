@@ -13,6 +13,7 @@ import { Account, AccountRecovery } from './pages/Account';
 import { Documents } from './pages/Documents';
 import { Learn } from './pages/Learn';
 import { CodingList } from './pages/Coding';
+import { ProjectPage } from './pages/Project';
 // The editor is large, so the problem workspace loads on demand.
 const CodingProblemPage = lazy(() => import('./pages/CodingProblem').then(m => ({ default: m.CodingProblemPage })));
 import './style.css';
@@ -21,7 +22,7 @@ function PublicAuth({register=false}:{register?:boolean}){const{user,loading,err
 function App(){return <AuthProvider><BrowserRouter><Routes>
   <Route path="/account/recovery" element={<AccountRecovery/>}/><Route path="/account/verify" element={<AccountRecovery verify/>}/>
   <Route path="/login" element={<PublicAuth/>}/><Route path="/register" element={<PublicAuth register/>}/>
-  <Route element={<Protected/>}><Route path="/account" element={<Account/>}/><Route path="/dashboard" element={<Dashboard/>}/><Route path="/interview/new" element={<Setup/>}/><Route path="/interview/:id" element={<InterviewRoom/>}/><Route path="/interview/:id/results" element={<Results/>}/><Route path="/history" element={<History/>}/><Route path="/documents" element={<Documents/>}/><Route path="/learn" element={<Learn/>}/><Route path="/coding" element={<CodingList/>}/><Route path="/coding/:id" element={<Suspense fallback={<LoadingScreen/>}><CodingProblemPage/></Suspense>}/></Route>
+  <Route element={<Protected/>}><Route path="/account" element={<Account/>}/><Route path="/dashboard" element={<Dashboard/>}/><Route path="/interview/new" element={<Setup/>}/><Route path="/interview/:id" element={<InterviewRoom/>}/><Route path="/interview/:id/results" element={<Results/>}/><Route path="/history" element={<History/>}/><Route path="/documents" element={<Documents/>}/><Route path="/learn" element={<Learn/>}/><Route path="/coding" element={<CodingList/>}/><Route path="/projects/:id" element={<ProjectPage/>}/><Route path="/coding/:id" element={<Suspense fallback={<LoadingScreen/>}><CodingProblemPage/></Suspense>}/></Route>
   <Route path="*" element={<Navigate to="/dashboard" replace/>}/>
 </Routes></BrowserRouter></AuthProvider>}
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
