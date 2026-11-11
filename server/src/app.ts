@@ -16,6 +16,9 @@ import codingRoutes from './routes/coding.js';
 import projectRoutes from './routes/projects.js';
 import designRoutes from './routes/design.js';
 import orgRoutes from './routes/orgs.js';
+import billingRoutes, { webhooks as billingWebhooks } from './routes/billing.js';
+import passportRoutes, { didRoute } from './routes/passport.js';
+import { EntitlementError } from './billing/entitlements.js';
 import { QuotaError } from './services/quotas.js';
 import { interviewMode } from './services/ai.js';
 import { localModelStatus, localVoiceStatus } from './services/modelProvider.js';
@@ -32,6 +35,8 @@ app.disable('x-powered-by');
 // Video self-review compiles MediaPipe's WebAssembly in the browser and plays recordings from blob: URLs.
 app.use(helmet({ contentSecurityPolicy: { directives: { scriptSrc: ["'self'", "'wasm-unsafe-eval'"], mediaSrc: ["'self'", 'blob:'] } } }));
 app.use(cors({ origin, credentials: true }));
+// Payment-provider webhooks are verified against their raw bodies, so they are routed before any JSON parsing.
+app.use('/api/billing/webhooks', billingWebhooks);
 // Design drafts carry drawings and parse their own larger body (routes/design.ts); everything else stays at 100 KB.
 const jsonBody = express.json({ limit: '100kb' });
 app.use((req, res, next) => (req.method === 'PUT' && /^\/api\/design\/sessions\/[^/]+\/draft$/.test(req.path) ? next() : jsonBody(req, res, next)));
@@ -59,6 +64,10 @@ app.use('/api/coding', codingRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/design', designRoutes);
 app.use('/api/orgs', orgRoutes);
+app.use('/api/billing', billingRoutes);
+app.use('/api/passport', passportRoutes);
+// The skill passport issuer's DID document (did:web).
+app.get('/.well-known/did.json', didRoute);
 if (process.env.SERVE_CLIENT === 'true') {
   const clientDist = fileURLToPath(new URL('../../client/dist/', import.meta.url));
   app.use(express.static(clientDist));
@@ -71,6 +80,7 @@ const handler: ErrorRequestHandler = (err, _req, res, _next) => {
     res.status(429).json({ error: err.message, code: 'QUOTA_EXCEEDED', resetAt: err.resetAt.toISOString() }); return;
   }
   if (err instanceof ConsentRequiredError) { res.status(409).json({error:err.message,code:'AI_CONSENT_REQUIRED'}); return; }
+  if (err instanceof EntitlementError) { res.status(402).json({ error: err.message, code: 'PLAN_REQUIRED', plan: err.plan, capability: err.capability }); return; }
   // Oversized or malformed request bodies are client errors, not server faults.
   if (err?.type === 'entity.too.large') { res.status(413).json({ error: 'That upload is too large.' }); return; }
   if (err?.type === 'entity.parse.failed') { res.status(400).json({ error: 'The request body could not be read.' }); return; }

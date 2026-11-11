@@ -12,6 +12,7 @@ import { consumeAIQuota, consumeQuota } from '../services/quotas.js';
 import { ConsentRequiredError, requireAIConsent } from '../services/providerConsent.js';
 import { interviewMode } from '../services/ai.js';
 import { operationalEvent } from '../services/monitoring.js';
+import { requireCapability } from '../billing/entitlements.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -38,6 +39,7 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', uploadLimit, zipBody, async (req, res, next) => {
   try {
+    await requireCapability(userId(req), 'project_defense');
     const name = z.string().trim().min(1).max(80).safeParse(decodeURIComponent(String(req.headers['x-project-name'] ?? '')));
     if (!name.success) { res.status(400).json({ error: 'Name the project (up to 80 characters).' }); return; }
     if (!Buffer.isBuffer(req.body) || !req.body.length) { res.status(415).json({ error: 'Upload the project as a .zip file.' }); return; }

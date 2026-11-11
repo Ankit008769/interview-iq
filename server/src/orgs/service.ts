@@ -10,6 +10,7 @@ import { SKILLS } from '../learning/skills.js';
 import { current, readiness } from '../learning/model.js';
 import { PROBLEM_BY_ID } from '../coding/problems.js';
 import { DESIGN_PROMPT_BY_ID } from '../design/prompts.js';
+import { csvCell, parseCsv } from '../services/csv.js';
 
 type Id = mongoose.Types.ObjectId;
 const oid = (id: string | Id) => new mongoose.Types.ObjectId(String(id));
@@ -159,13 +160,8 @@ export async function cohortReport(orgId: Id, cohortId: Id, now = new Date()) {
   };
 }
 
-// Spreadsheet cells that start with = + - @ (or a tab or carriage return) are formulas; prefix them so an
-// export opened in Excel or Sheets can never run one.
-export const csvCell = (value: unknown) => {
-  let text = value === null || value === undefined ? '' : value instanceof Date ? value.toISOString() : String(value);
-  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
-  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-};
+// Formula-neutralising CSV cells (services/csv.ts), re-exported for the campus tests.
+export { csvCell };
 export function cohortCsv(report: Awaited<ReturnType<typeof cohortReport>>) {
   const head = ['Name', 'Email', 'Roll number', 'Readiness index', 'Skill readiness', 'On-time completion %', 'Recent interview score', 'Assignments completed', 'Last active',
     ...report.assignments.map(a => a.title)];
@@ -210,25 +206,12 @@ export async function addPack(orgId: Id, cohortId: Id, packId: string, start: Da
 // ---------------------------------------------------------------- bulk onboarding
 
 const EMAIL = /^[^\s@,;]{1,64}@[^\s@,;]{1,190}\.[a-z]{2,}$/i;
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = []; let row: string[] = []; let cell = ''; let quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (quoted) { if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; } else if (c === '"') quoted = false; else cell += c; continue; }
-    if (c === '"') quoted = true;
-    else if (c === ',') { row.push(cell); cell = ''; }
-    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
-    else cell += c;
-  }
-  if (cell || row.length) { row.push(cell); rows.push(row); }
-  return rows.filter(r => r.some(c => c.trim()));
-}
 
 // CSV columns: email (required), name, cohort, roll_number, role (student or coordinator; admins are added
 // in the app). People who are already members are moved into the cohort; everyone else gets an invitation
 // that they accept after signing in with that email.
 export async function importInvitations(orgId: Id, csv: string, invitedBy: string, inviterRole: OrgRole) {
-  const rows = parseCsv(csv.replace(/^﻿/, ''));
+  const rows = parseCsv(csv); // parseCsv drops a leading byte-order mark
   if (!rows.length) throw new OrgError('The CSV is empty.');
   const header = rows[0].map(h => h.trim().toLowerCase().replace(/[\s-]+/g, '_'));
   const col = (name: string) => header.indexOf(name);

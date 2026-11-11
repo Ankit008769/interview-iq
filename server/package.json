@@ -16,7 +16,8 @@
     "coding:verify": "tsx src/scripts/codingVerify.ts",
     "project-check": "tsx src/scripts/projectCheck.ts",
     "design-check": "tsx src/scripts/designCheck.ts",
-    "feature-report": "tsx src/scripts/featureReport.ts"
+    "feature-report": "tsx src/scripts/featureReport.ts",
+    "billing": "tsx src/scripts/billing.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^8.4.0",

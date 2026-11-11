@@ -16,6 +16,7 @@ import { groundingDocuments, removeDerivedQuestions } from '../services/document
 import { analyzeDelivery } from '../services/delivery.js';
 import { SKILL_BY_ID } from '../learning/skills.js';
 import { liveProject, removeProjectQuestions } from '../projects/service.js';
+import { claimVoiceInterview, hasCapability, requireCapability, requireInterviewAllowance } from '../billing/entitlements.js';
 
 // Accepted recording formats, each checked against its leading bytes rather than trusting the header.
 const audioSignatures: Record<string, (b: Buffer) => boolean> = {
@@ -94,6 +95,10 @@ router.post('/:id/transcribe', aiLimit, audioBody, async (req, res, next) => {
     if (audio.length < 1024) { res.status(400).json({ error: 'The recording is too short. Record your answer again.' }); return; }
     if (!audioSignatures[type](audio)) { res.status(415).json({ error: 'The recording does not match its audio format.' }); return; }
     await requireAIConsent(userId(req));
+    // The first spoken answer makes this a voice interview; check the plan's allowance before transcribing.
+    if (!await claimVoiceInterview(userId(req), doc.id, new Date(), true)) {
+      res.status(402).json({ error: 'You have used all of this month’s voice interviews. Type your answer, or add voice interviews on the Billing page.', code: 'PLAN_REQUIRED', plan: 'pro', capability: 'voice_interviews' }); return;
+    }
     await consumeAIQuota(userId(req));
     let text: string;
     try { ({ text } = await transcribeAudio(audio, type, { userId: userId(req), interviewId: doc.id }, doc.language === 'hi' ? 'hi' : undefined)); }
@@ -103,11 +108,12 @@ router.post('/:id/transcribe', aiLimit, audioBody, async (req, res, next) => {
       res.status(502).json({ error: 'Your recording could not be transcribed. Please try again or type your answer.' }); return;
     }
     if (!text) { res.status(422).json({ error: 'No speech was detected. Try again closer to the microphone, or type your answer.' }); return; }
+    await claimVoiceInterview(userId(req), doc.id);
     // Pace and filler counts come from the transcript and the browser's recording length, unless the candidate
     // turned delivery feedback off. Only counts are kept, for the question that is still on screen.
     const recordedMs = Number(req.headers['x-recording-ms']);
     const measure = Number.isInteger(recordedMs) && recordedMs >= 1000 && recordedMs <= 330_000
-      && (await User.findById(userId(req)).select('preferences'))?.preferences?.deliveryMetrics !== false;
+      && (await User.findById(userId(req)).select('preferences'))?.preferences?.deliveryMetrics !== false && await hasCapability(userId(req), 'delivery');
     const delivery = measure ? analyzeDelivery(text, Math.round(recordedMs / 1000)) : undefined;
     if (delivery) {
       const questionIndex = doc.turns.length;
@@ -178,6 +184,13 @@ router.post('/', aiLimit, async (req, res, next) => {
     const project = projectId ? await liveProject(userId(req), projectId) : null;
     if (projectId && (input.mode !== 'ai' || input.type !== 'Technical')) { res.status(400).json({ error: 'Project defense needs an AI technical interview.' }); return; }
     if (projectId && !project) { res.status(400).json({ error: 'Choose one of your uploaded projects.' }); return; }
+    // Plan limits (D5) apply only when BILLING_ENFORCEMENT is on; practice-bank interviews are always free.
+    if (input.mode === 'ai') {
+      await requireInterviewAllowance(userId(req));
+      if (ids.length) await requireCapability(userId(req), 'resume_jd');
+      if (input.language && input.language !== 'en') await requireCapability(userId(req), 'indic_languages');
+      if (projectId) await requireCapability(userId(req), 'project_defense');
+    }
     const focusSkills = [...new Set(input.focusSkills ?? [])];
     if (focusSkills.some(id => SKILL_BY_ID.get(id)?.type !== input.type)) { res.status(400).json({ error: 'Choose practice skills that match the interview type.' }); return; }
     if (documents.length !== ids.length) { res.status(400).json({ error: 'Choose documents from your saved resumes and job descriptions.' }); return; }

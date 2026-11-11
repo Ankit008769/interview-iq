@@ -34,6 +34,7 @@ export function Account() {
     } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
   }
   return <div className="account-page"><h1>Account & privacy</h1><p>Manage access, your saved data and AI usage.</p>
+    <nav className="account-links" aria-label="Plan and records"><Link className="button secondary" to="/billing">Plan and billing</Link><Link className="button secondary" to="/passport">Skill passport</Link><Link className="button secondary" to="/campus">Campus</Link></nav>
     {error && <div className="alert error" role="alert">{error} <button className="button" onClick={load}>Retry loading</button></div>}
     {message && <p role="status">{message}</p>}
     {!loaded ? <p>Loading account settings…</p> : <>

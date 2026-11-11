@@ -122,6 +122,8 @@ export interface IInterview {
   challenges: ScoreChallenge[];
   rewrites: AnswerRewrite[];
   deliveryClips: DeliveryClip[];
+  // Set on the first transcribed answer: this was a voice interview (plan allowances, roadmap D5).
+  voiceUsedAt?: Date;
   starChecks: StarCheck[];
   createdAt: Date;
   updatedAt: Date;
@@ -245,6 +247,7 @@ const interviewSchema = new Schema<IInterview>({
   challenges: { type: [challengeSchema], default: [] },
   rewrites: { type: [rewriteSchema], default: [] },
   deliveryClips: { type: [deliveryClipSchema], default: [] },
+  voiceUsedAt: Date,
   starChecks: { type: [starCheckSchema], default: [] },
   completedAt: { type: Date },
 }, { timestamps: true });

@@ -18,6 +18,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
+import { generateSigningKey } from '../src/passport/crypto.js';
 process.env.JWT_SECRET = 'browser-test-only-secret-longer-than-thirty-two-characters';
 process.env.CLIENT_ORIGIN = 'http://127.0.0.1:5101';
 process.env.NODE_ENV = 'test';
@@ -25,6 +26,10 @@ process.env.SERVE_CLIENT = 'true';
 process.env.AI_PROVIDER = 'practice';
 // Every browser test registers from 127.0.0.1, so the per-IP auth limit needs headroom here only.
 process.env.AUTH_REQUESTS_PER_15_MIN = '200';
+// The skill passport signs with a throwaway key generated for this run only.
+process.env.PASSPORT_ISSUER_HOST = '127.0.0.1:5101';
+process.env.PASSPORT_SIGNING_KEY = generateSigningKey();
+delete process.env.BILLING_ENFORCEMENT;
 process.env.MONGOMS_VERSION = '8.2.6';
 process.env.MONGOMS_DOWNLOAD_DIR = fileURLToPath(new URL('../node_modules/.cache/mongodb-memory-server', import.meta.url));
 delete process.env.OPENAI_API_KEY;

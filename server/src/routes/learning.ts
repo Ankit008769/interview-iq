@@ -5,6 +5,7 @@ import { PLAN_MINUTES, StudyPlan } from '../models/Learning.js';
 import { SKILL_BY_ID } from '../learning/skills.js';
 import { consumeQuota } from '../services/quotas.js';
 import { daysBetween, drillForSkill, learningOverview, localDay, planView, progressReport, validTimeZone } from '../services/learning.js';
+import { requireCapability } from '../billing/entitlements.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -33,6 +34,7 @@ router.get('/drill', async (req, res, next) => {
 });
 router.put('/plan', planLimit, async (req, res, next) => {
   try {
+    await requireCapability(userId(req), 'study_plan');
     const parsed = planSchema.safeParse(req.body);
     const timeZone = validTimeZone(req.get('x-time-zone'));
     const date = parsed.success ? new Date(`${parsed.data.interviewDate}T00:00:00Z`) : null;

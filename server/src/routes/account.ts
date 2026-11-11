@@ -16,6 +16,8 @@ import { Project } from '../models/Project.js';
 import { DesignSession } from '../models/DesignSession.js';
 import { Membership, Organization } from '../models/Organization.js';
 import { FeatureEvent, FEATURES } from '../models/FeatureEvent.js';
+import { Credit, CouponRedemption, Invoice, Payment, Referral, ReferralCode, Subscription } from '../models/Billing.js';
+import { PassportCredential } from '../models/Passport.js';
 import { consumeQuota } from '../services/quotas.js';
 import { accountVersionFilter, clearSession, userView } from '../services/account.js';
 import { authLimit, validPassword } from './auth.js';
@@ -150,6 +152,12 @@ router.get('/export', async (req, res, next) => {
       await write((first ? '' : ',') + JSON.stringify(usage)); first = false;
     }
     await write('],"featureEvents":' + JSON.stringify(await FeatureEvent.find({ userId }).sort({ createdAt: 1 }).lean()));
+    const [subscriptions, payments, invoices, credits, redemptions, referralCode, referrals, passports] = await Promise.all([
+      Subscription.find({ userId }).lean(), Payment.find({ userId }).lean(), Invoice.find({ 'recipient.userId': userId }).lean(), Credit.find({ userId }).lean(),
+      CouponRedemption.find({ userId }).lean(), ReferralCode.findOne({ userId }).lean(), Referral.find({ $or: [{ referrerId: userId }, { refereeId: userId }] }).lean(),
+      PassportCredential.find({ userId }).lean()]);
+    await write(',"billing":' + JSON.stringify({ subscriptions, payments, invoices, credits, couponRedemptions: redemptions, referralCode: referralCode?.code ?? null, referrals }));
+    await write(',"passports":' + JSON.stringify(passports));
     res.end('}');
   } catch (err) { if (res.headersSent) res.destroy(); else next(err); }
 });
@@ -171,6 +179,10 @@ router.post('/delete', authLimit, async (req, res, next) => {
     if (!parsed.success) { res.status(400).json({ error: 'Enter your password and type DELETE.' }); return; }
     const user = await User.findById((req as unknown as AuthRequest).userId).select('+passwordHash');
     if (!user || !await bcrypt.compare(parsed.data.password, user.passwordHash)) { res.status(400).json({ error: 'Password is incorrect.' }); return; }
+    // Deleting the account does not stop a provider's renewals, so a live subscription must be cancelled first.
+    if (await Subscription.exists({ userId: user._id, status: { $in: ['active', 'past_due'] }, cancelAtPeriodEnd: false })) {
+      res.status(409).json({ error: 'Cancel your subscription on the Billing page before deleting your account.' }); return;
+    }
     const requestedAt = new Date();
     const deleted = await User.updateOne({ _id: user._id, ...accountVersionFilter(user.authVersion ?? 0), deletionRequestedAt: { $exists: false } },
       { $set: { deletionRequestedAt: requestedAt }, $inc: { authVersion: 1 } });

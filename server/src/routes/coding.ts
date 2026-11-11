@@ -17,6 +17,7 @@ import { ConsentRequiredError, requireAIConsent } from '../services/providerCons
 import { interviewMode } from '../services/ai.js';
 import { operationalEvent } from '../services/monitoring.js';
 import { CODING_RUBRIC } from '../services/rubrics.js';
+import { requireCapability } from '../billing/entitlements.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -93,6 +94,7 @@ router.post('/problems/:id/runs', runLimit, async (req, res, next) => {
   try {
     const problem = PROBLEM_BY_ID.get(req.params.id);
     if (!problem) { res.status(404).json({ error: 'Problem not found.' }); return; }
+    await requireCapability(userId(req), 'coding_lab');
     const parsed = runSchema.safeParse(req.body);
     if (!parsed.success || !parsed.data.source.trim()) { res.status(400).json({ error: 'Choose a language and write some code (up to 64 KB).' }); return; }
     const { language, source, mode } = parsed.data;

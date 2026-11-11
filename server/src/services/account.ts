@@ -5,6 +5,8 @@ import { User } from '../models/User.js';
 import { Interview } from '../models/Interview.js';
 import { AIUsage } from '../models/AIUsage.js';
 import { FeatureEvent } from '../models/FeatureEvent.js';
+import { CheckoutIntent, CouponRedemption, Credit, Invoice, Payment, Referral, ReferralCode, Subscription } from '../models/Billing.js';
+import { PassportCredential } from '../models/Passport.js';
 import { CandidateDocument } from '../models/CandidateDocument.js';
 import { SkillState, StudyPlan } from '../models/Learning.js';
 import { CodeRun } from '../models/CodeRun.js';
@@ -61,6 +63,15 @@ export async function processAccountDeletions(now = new Date()) {
     await removeUserFromOrgs(userId, (await User.findById(userId).select('email').lean())?.email);
     await AIUsage.deleteMany({ userId });
     await FeatureEvent.deleteMany({ userId });
+    // Billing: personal records go; payments, subscriptions and invoices are financial records kept for the
+    // statutory period, so they are detached from the person instead.
+    await Promise.all([CheckoutIntent.deleteMany({ userId }), Credit.deleteMany({ userId }), CouponRedemption.deleteMany({ userId }), ReferralCode.deleteMany({ userId }),
+      Referral.deleteMany({ $or: [{ referrerId: userId }, { refereeId: userId }] })]);
+    await Payment.updateMany({ userId }, { $unset: { userId: 1 } });
+    await Subscription.updateMany({ userId }, { $unset: { userId: 1 } });
+    await Invoice.updateMany({ 'recipient.userId': userId }, { $unset: { 'recipient.userId': 1 } });
+    // Passports: the content goes, but each status index stays revoked so copies given out verify as revoked.
+    await PassportCredential.updateMany({ userId }, { $set: { revokedAt: new Date(), credential: {}, kinds: [] }, $unset: { userId: 1 } });
     await AuthSession.deleteMany({ userId });
     await AccountToken.deleteMany({ userId });
     await QuotaBucket.deleteMany({ _id: { $regex: `^${userId.toString()}:` } });

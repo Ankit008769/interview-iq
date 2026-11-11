@@ -13,6 +13,7 @@ import { ConsentRequiredError, requireAIConsent } from '../services/providerCons
 import { interviewMode } from '../services/ai.js';
 import { operationalEvent } from '../services/monitoring.js';
 import { DESIGN_RUBRIC } from '../services/rubrics.js';
+import { requireCapability } from '../billing/entitlements.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -55,6 +56,7 @@ router.post('/sessions', limit('design sessions', 30, 86_400_000), async (req, r
   try {
     const prompt = DESIGN_PROMPT_BY_ID.get(String(req.body?.promptId ?? ''));
     if (!prompt) { res.status(400).json({ error: 'Choose a design problem.' }); return; }
+    await requireCapability(userId(req), 'system_design');
     const session = await DesignSession.create({ userId: userId(req), promptId: prompt.id });
     res.status(201).json({ session: view(session) });
   } catch (err) { next(err); }

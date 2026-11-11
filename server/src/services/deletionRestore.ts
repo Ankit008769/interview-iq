@@ -47,6 +47,11 @@ export async function reconcileDeletions(db: Db, receipts: DeletionReceipt[]) {
     if (!(userId instanceof ObjectId)) throw new Error('Invalid local deletion receipt');
     for (const name of ['interviews', 'documents', 'skill_states', 'study_plans', 'code_runs', 'projects', 'design_sessions', 'aiusages', 'authsessions', 'accounttokens']) await db.collection(name).deleteMany({ userId });
     await db.collection('feature_events').deleteMany({ userId });
+    for (const name of ['checkout_intents', 'credits', 'coupon_redemptions', 'referral_codes']) await db.collection(name).deleteMany({ userId });
+    await db.collection('referrals').deleteMany({ $or: [{ referrerId: userId }, { refereeId: userId }] });
+    for (const name of ['payments', 'subscriptions']) await db.collection(name).updateMany({ userId }, { $unset: { userId: '' } });
+    await db.collection('invoices').updateMany({ 'recipient.userId': userId }, { $unset: { 'recipient.userId': '' } });
+    await db.collection('passport_credentials').updateMany({ userId }, { $set: { revokedAt: new Date(), credential: {}, kinds: [] }, $unset: { userId: '' } });
     await db.collection('quotabuckets').deleteMany({ _id: { $regex: `^${userId.toHexString()}:` } } as any);
     // Organisations: as removeUserFromOrgs, an organisation whose only admin this was goes with them.
     for (const { orgId } of await db.collection('memberships').find({ userId, role: 'admin' }).project({ orgId: 1 }).toArray()) {
