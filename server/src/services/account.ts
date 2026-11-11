@@ -9,6 +9,7 @@ import { SkillState, StudyPlan } from '../models/Learning.js';
 import { CodeRun } from '../models/CodeRun.js';
 import { Project } from '../models/Project.js';
 import { DesignSession } from '../models/DesignSession.js';
+import { removeUserFromOrgs } from '../orgs/service.js';
 import { QuotaBucket } from './quotas.js';
 import { replicateDeletionReceipt } from './deletionLedger.js';
 export const accountVersionFilter = (version: number) => version === 0 ? { $or: [{authVersion:0}, {authVersion:{$exists:false}}] } : {authVersion:version};
@@ -56,6 +57,7 @@ export async function processAccountDeletions(now = new Date()) {
     await CodeRun.deleteMany({ userId });
     await Project.deleteMany({ userId });
     await DesignSession.deleteMany({ userId });
+    await removeUserFromOrgs(userId, (await User.findById(userId).select('email').lean())?.email);
     await AIUsage.deleteMany({ userId });
     await AuthSession.deleteMany({ userId });
     await AccountToken.deleteMany({ userId });

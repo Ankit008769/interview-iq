@@ -158,3 +158,33 @@ export interface DesignSessionView {
   followUps: { index: number; constraint: string; question: string; referenced: 'model' | 'added'; answer?: string; rating?: number }[];
   review?: { criteria: CriterionRating[]; summary: string; createdAt: string };
 }
+// Campus and placement offices (D1). Staff see only what a student agreed to share when joining.
+export type OrgRole = 'admin' | 'coordinator' | 'student';
+export const ORG_ROLE_LABELS: Record<OrgRole, string> = { admin: 'Admin', coordinator: 'Coordinator', student: 'Student' };
+export type AssignmentSpec =
+  | { kind: 'interview'; type: InterviewType; topic: string; difficulty: Interview['difficulty']; totalQuestions: number; style?: InterviewStyle }
+  | { kind: 'coding'; problemId: string }
+  | { kind: 'design'; promptId: string };
+export interface OrgBranding { displayName?: string; accentColor?: string }
+export interface DrivePack { id: string; title: string; description: string; items: { title: string; offsetDays: number }[] }
+export interface OrgOverview {
+  sharing: { version: string; text: string }; emailVerified: boolean;
+  memberships: { orgId: string; name: string; role: OrgRole; branding: OrgBranding }[];
+  invitations: { id: string; orgName: string; role: OrgRole; createdAt: string }[];
+  packs: DrivePack[];
+}
+export interface MyAssignment { id: string; orgName: string; title: string; spec: AssignmentSpec; dueAt: string; link: string; done: boolean; completedAt?: string; late: boolean; score: number | null }
+export interface OrgDetail {
+  org: { id: string; name: string; branding: OrgBranding; role: OrgRole; joinCode?: string };
+  cohorts: { id: string; name: string; joinCode?: string; students?: number }[]; members?: number; invitations?: number;
+}
+export interface OrgMember { userId: string; name?: string; email?: string; role: OrgRole; rollNumber: string; cohortIds: string[]; joinedAt: string }
+export interface OrgInvitation { id: string; email: string; name?: string; role: OrgRole; cohortId: string | null; rollNumber?: string }
+export interface ImportResult { invited: number; updated: number; alreadyMembers: number; cohortsCreated: number; errors: { line: number; error: string }[] }
+export interface CohortReport {
+  cohort: { id: string; name: string; joinCode: string };
+  students: { userId: string; name: string; email: string; rollNumber: string; readiness: number | null;
+    parts: { skills: number | null; assignments: number | null; interviews: number | null }; completed: number; onTime: number; lastActive: string | null;
+    assignments: { id: string; done: boolean; late: boolean; score: number | null }[] }[];
+  assignments: { id: string; title: string; spec: AssignmentSpec; dueAt: string; pack?: string; link: string; completed: number; onTime: number; total: number }[];
+}

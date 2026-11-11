@@ -14,6 +14,7 @@ import { SkillState, StudyPlan } from '../models/Learning.js';
 import { CodeRun } from '../models/CodeRun.js';
 import { Project } from '../models/Project.js';
 import { DesignSession } from '../models/DesignSession.js';
+import { Membership, Organization } from '../models/Organization.js';
 import { accountVersionFilter, clearSession, userView } from '../services/account.js';
 import { authLimit, validPassword } from './auth.js';
 const router = Router(); router.use(requireAuth);
@@ -138,7 +139,10 @@ router.get('/export', async (req, res, next) => {
       if (res.destroyed) return;
       await write((first ? '' : ',') + JSON.stringify(session)); first = false;
     }
-    await write('],"usage":['); first = true;
+    const memberships = await Membership.find({ userId }).lean();
+    const orgNames = new Map((await Organization.find({ _id: { $in: memberships.map(m => m.orgId) } }).select('name').lean()).map(o => [String(o._id), o.name]));
+    await write('],"organisations":' + JSON.stringify(memberships.map(m => ({ ...m, organisation: orgNames.get(String(m.orgId)) }))));
+    await write(',"usage":['); first = true;
     for await (const usage of AIUsage.find({ userId }).lean().cursor()) {
       if (res.destroyed) return;
       await write((first ? '' : ',') + JSON.stringify(usage)); first = false;

@@ -15,6 +15,7 @@ import learningRoutes from './routes/learning.js';
 import codingRoutes from './routes/coding.js';
 import projectRoutes from './routes/projects.js';
 import designRoutes from './routes/design.js';
+import orgRoutes from './routes/orgs.js';
 import { QuotaError } from './services/quotas.js';
 import { interviewMode } from './services/ai.js';
 import { localModelStatus, localVoiceStatus } from './services/modelProvider.js';
@@ -56,6 +57,7 @@ app.use('/api/learning', learningRoutes);
 app.use('/api/coding', codingRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/design', designRoutes);
+app.use('/api/orgs', orgRoutes);
 if (process.env.SERVE_CLIENT === 'true') {
   const clientDist = fileURLToPath(new URL('../../client/dist/', import.meta.url));
   app.use(express.static(clientDist));

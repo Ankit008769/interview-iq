@@ -11,9 +11,10 @@ export function Setup() {
   const initialType=types.includes(params.get('type') as typeof types[number])?params.get('type') as typeof types[number]:'Technical';
   const [role,setRole]=useState('Software Development Engineer');
   const [type,setType]=useState<typeof types[number]>(initialType);
-  const [difficulty,setDifficulty]=useState<typeof difficulties[number]>('Intermediate');
+  // An assignment link (/interview/new?type=&topic=&difficulty=&questions=&style=) opens the page preset.
+  const [difficulty,setDifficulty]=useState<typeof difficulties[number]>(difficulties.includes(params.get('difficulty') as typeof difficulties[number])?params.get('difficulty') as typeof difficulties[number]:'Intermediate');
   const [topic,setTopic]=useState(params.get('topic')||'DSA');
-  const [totalQuestions,setTotalQuestions]=useState(3);
+  const [totalQuestions,setTotalQuestions]=useState([2,3,5].includes(Number(params.get('questions')))?Number(params.get('questions')):3);
   const [timeLimit,setTimeLimit]=useState<number|null>(null);
   const [loading,setLoading]=useState(false); const [error,setError]=useState('');
   const [consented,setConsented]=useState(false);const [aiAvailable,setAIAvailable]=useState(false);const [useAI,setUseAI]=useState(true);
@@ -27,7 +28,7 @@ export function Setup() {
   const [language,setLanguage]=useState<InterviewLanguage>('en');
   const chosenLanguage:InterviewLanguage=aiOn?language:'en';
   // Styles shape AI questions like a kind of employer; practice interviews use the general bank.
-  const [style,setStyle]=useState<InterviewStyle>('general');
+  const [style,setStyle]=useState<InterviewStyle>((['general','product','services','startup'] as const).find(s=>s===params.get('style'))??'general');
   const chosenStyle:InterviewStyle=aiOn?style:'general';
   async function create(e:FormEvent) {e.preventDefault();setLoading(true);setError('');
     try {const d=await api<{interview:Interview;mode:Mode}>('/interviews',{method:'POST',body:JSON.stringify({mode:aiOn?'ai':'practice',role,type,difficulty,topic: type==='Technical'?topic:type==='Behavioral'?'Behavioral':'General',totalQuestions,...(timeLimit?{timeLimitSeconds:timeLimit}:{}),...(documentIds.length?{documentIds}:{}),...(chosenLanguage!=='en'?{language:chosenLanguage}:{}),...(chosenStyle!=='general'?{style:chosenStyle}:{})}),timeoutMs:180_000});navigate(`/interview/${d.interview._id}`);}

@@ -270,3 +270,27 @@
 .design-review{border-top:1px solid #222a3f;padding-top:12px;display:flex;flex-direction:column;gap:8px}
 .design-review h3{display:flex;align-items:center;gap:8px;margin:0;font-size:14px}
 @media(max-width:870px){.design-inputs{grid-template-columns:1fr}.board{height:420px}}
+/* Campus and placement offices (D1) */
+.alert.success{background:#1f4a3d5e;border:1px solid #3f8f72;color:#bdf3dc}
+.campus-page,.org-page{max-width:1100px;margin:auto}.campus-card{padding:22px 24px;margin:0 0 20px}.campus-card h2{display:flex;align-items:center;gap:9px;font-size:17px;margin:0 0 14px}.campus-card h3{font-size:14px;margin:22px 0 10px}
+.campus-card .muted,.campus-page .muted,.org-page .muted{color:#8d98b1;font-size:12.5px;line-height:1.6}.campus-note{font-size:11.5px;color:#7e8aa6;line-height:1.6;margin:14px 0 0}
+.campus-list{list-style:none;padding:0;margin:0;display:grid;gap:10px}.campus-list>li{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:13px 15px;border:1px solid #273048;border-radius:12px;background:#0f1424}
+.campus-list>li>div:first-child{display:flex;flex-direction:column;gap:4px;min-width:0}.campus-list>li>div:first-child span{font-size:11.5px;color:#8592ad}.campus-list li.org-row{border-left:4px solid #8266f2}
+.campus-list li.overdue{border-color:#7a4351}.campus-list li.done{opacity:.85}.button-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.campus-accept{flex-basis:100%;display:grid;gap:12px}
+.assignment-state{display:flex;align-items:center;gap:10px}.due-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:5px 10px;border-radius:50px;background:#22283d;color:#c9d0e4;white-space:nowrap}
+.due-chip.done{background:#1f4a3d;color:#a9f0d2}.due-chip.overdue{background:#5a2633;color:#ffc0cc}
+.sharing-terms{border:1px solid #33405e;background:#141c31;border-radius:12px;padding:13px 15px;display:grid;gap:10px}.sharing-terms p{margin:0;font-size:12px;line-height:1.6;color:#c2cbdf;display:flex;gap:8px;align-items:flex-start}.sharing-terms p svg{flex:none;margin-top:2px;color:#7ee0bd}
+.check-row{display:flex;align-items:center;gap:9px;font-size:12.5px;font-weight:700;color:#dfe4f3}.check-row input{width:16px;height:16px;accent-color:#8266f2}
+.campus-join-fields{display:grid;grid-template-columns:1fr 1fr;gap:14px}.campus-page .form-stack{max-width:none;gap:15px}.campus-create{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:12px}.campus-create .field{flex:1;min-width:200px}
+.org-heading{border-left:4px solid transparent;padding-left:14px}.org-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.org-grid .campus-card{margin:0 0 20px}
+.join-code{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.join-code code{font-size:22px;letter-spacing:4px;font-weight:800;color:#e8e2ff;background:#1b2036;border:1px dashed #4b4580;border-radius:10px;padding:9px 16px}
+.csv-input{width:100%;background:#0d1322;border:1px solid #31394e;color:#f3f4ff;border-radius:10px;padding:12px 14px;font:12px/1.5 ui-monospace,Consolas,monospace;margin:4px 0 12px;resize:vertical}
+.file-button{cursor:pointer}.import-result{margin-top:14px;font-size:12px;color:#c2cbdf}.import-result p{display:flex;gap:7px;align-items:center}.import-result ul{margin:6px 0 0;padding-left:18px;color:#ffc0cc}
+.org-page .report-table select{background:#0d1322;border:1px solid #31394e;color:#f3f4ff;border-radius:8px;padding:5px 8px;font-size:12px}
+.color-field input[type=color]{width:64px;height:38px;padding:3px}.danger-zone{border-top:1px solid #3a2733;margin-top:24px;padding-top:4px}.danger-zone .field{max-width:400px;margin-bottom:12px}.button.danger{border-color:#a65767;color:#ffc0cc}
+.cohort-table td{vertical-align:top}.cohort-table td .muted{font-size:11px}.readiness-chip{display:inline-block;min-width:34px;text-align:center;font-weight:800;padding:3px 8px;border-radius:8px;background:#2e2b52;color:#d9ceff}
+.cell-done{color:#a9f0d2}.cell-late{color:#f3d3a1}
+.assignment-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;align-items:end}.assignment-form .wide{grid-column:span 2}.assignment-form .button{height:46px}
+.pack-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:6px}.pack-option{border:1px solid #2b3449;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:6px;cursor:pointer;background:#0f1424;font-size:12px}
+.pack-option.active{border-color:#8266f2;box-shadow:0 0 0 2px #8266f233}.pack-option input{position:absolute;opacity:0;pointer-events:none}.pack-option b{font-size:13px}.pack-option span{color:#8d98b1;line-height:1.5}.pack-option ol{margin:4px 0 0;padding-left:18px;color:#c2cbdf;line-height:1.7}.pack-option em{color:#7e8aa6;font-style:normal}
+@media(max-width:760px){.org-grid,.campus-join-fields{grid-template-columns:1fr}.assignment-form .wide{grid-column:auto}.campus-card{padding:18px}.campus-list>li{align-items:flex-start}.join-code code{font-size:18px;letter-spacing:3px}}

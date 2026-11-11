@@ -75,6 +75,17 @@ payloads, prompts, answers, email addresses, URLs or credentials. Retiring a rev
 must not generate a false heartbeat absence alert, so the condition reduces across
 revisions. Stopping all staging compute intentionally will alert after activation.
 
+Placement-office administration (campus, [CAMPUS.md](CAMPUS.md)) writes NOTICE events with
+`event: "org_audit"`. Each event records:
+
+- the action, such as joining, leaving, role or cohort changes, CSV imports, new join codes, assignments,
+  packs, exports and deletions;
+- the organisation ID and the acting user's ID;
+- where relevant, a target ID and a count.
+
+Names, email addresses, roll numbers and file contents are never logged. Query them in Cloud Logging with
+`jsonPayload.event="org_audit"`.
+
 ## Operations and verification
 
 For a health incident, check the active revision, database health and VM before
