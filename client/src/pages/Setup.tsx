@@ -2,7 +2,7 @@ import { AIConsent } from '../components/AIConsent';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, BrainCircuit, Check, CircleHelp, Clock3, FileText, MessageCircle, Sparkles, Target } from 'lucide-react';
-import { api, LANGUAGE_LABELS, STYLE_LABELS, warmUpAI, type CandidateDocument, type Interview, type InterviewLanguage, type InterviewStyle, type Mode } from '../lib/api';
+import { api, LANGUAGE_LABELS, REGIONAL_LANGUAGES, STYLE_LABELS, warmUpAI, type CandidateDocument, type Interview, type InterviewLanguage, type InterviewStyle, type Mode } from '../lib/api';
 const types=['Technical','Behavioral','HR'] as const;
 const topics=['DSA','React','Node.js','DBMS','Behavioral','General'];
 const difficulties=['Beginner','Intermediate','Advanced'] as const;
@@ -26,7 +26,11 @@ export function Setup() {
   const documentIds=aiOn?[resumeId,jdId].filter(Boolean):[];
   // Practice questions come from the English bank; Hindi and Hinglish need the AI interviewer.
   const [language,setLanguage]=useState<InterviewLanguage>('en');
-  const chosenLanguage:InterviewLanguage=aiOn?language:'en';
+  // Tamil, Telugu, Bengali and Marathi are offered for HR and behavioural rounds only.
+  const regional=(REGIONAL_LANGUAGES as readonly string[]).includes(language);
+  const languages:InterviewLanguage[]=type==='Technical'?['en','hi','hinglish']:['en','hi','hinglish',...REGIONAL_LANGUAGES];
+  useEffect(()=>{if(type==='Technical'&&regional)setLanguage('en');},[type,regional]);
+  const chosenLanguage:InterviewLanguage=aiOn&&!(type==='Technical'&&regional)?language:'en';
   // Styles shape AI questions like a kind of employer; practice interviews use the general bank.
   const [style,setStyle]=useState<InterviewStyle>((['general','product','services','startup'] as const).find(s=>s===params.get('style'))??'general');
   const chosenStyle:InterviewStyle=aiOn?style:'general';
@@ -56,8 +60,9 @@ export function Setup() {
       {aiAvailable&&<label className="consent-check"><input type="checkbox" checked={useAI} onChange={e=>setUseAI(e.target.checked)}/> Use AI for this interview (requires permission above)</label>}
       {aiOn&&!consented&&<p className="ai-needed" role="status">Accept AI processing above to start an AI interview with fresh questions, verdicts and tips, Hindi or Hinglish, voice answers and resume tailoring. Or untick Use AI for a practice interview.</p>}
       {aiOn&&<div className="language-box"><h3>Interview language</h3>
-        <div className="segmented language-select" role="group" aria-label="Interview language">{(['en','hi','hinglish'] as const).map(v=><button type="button" key={v} aria-pressed={language===v} onClick={()=>setLanguage(v)} className={language===v?'active':''}>{LANGUAGE_LABELS[v]}</button>)}</div>
-        <p className="timing-note">{language==='en'?'Questions and feedback in English.':language==='hi'?'Beta: questions and feedback in Hindi (Devanagari). Answer in Hindi, English or a mix; technical terms stay in English. Hindi from the current model can sound unnatural, and scoring is slower.':'Beta: questions and feedback in Hinglish (Roman script). Answer in Hindi, English or a mix. Scoring of mixed-language answers is less accurate than English.'}</p></div>}
+        <div className="segmented language-select" role="group" aria-label="Interview language">{languages.map(v=><button type="button" key={v} lang={v==='en'||v==='hinglish'?undefined:v} aria-pressed={language===v} onClick={()=>setLanguage(v)} className={language===v?'active':''}>{LANGUAGE_LABELS[v]}</button>)}</div>
+        {type==='Technical'&&<p className="timing-note">Tamil, Telugu, Bengali and Marathi are available for HR and behavioural interviews.</p>}
+        <p className="timing-note">{regional?`Beta: questions and feedback in ${LANGUAGE_LABELS[language].replace(/^.*\((.*)\)$/,'$1')}. Answer in that language, English or a mix; workplace terms can stay in English. Experimental: with the current model, questions are in the right script but can be unnatural or off-topic, and scoring is slower than English.`:language==='en'?'Questions and feedback in English.':language==='hi'?'Beta: questions and feedback in Hindi (Devanagari). Answer in Hindi, English or a mix; technical terms stay in English. Hindi from the current model can sound unnatural, and scoring is slower.':'Beta: questions and feedback in Hinglish (Roman script). Answer in Hindi, English or a mix. Scoring of mixed-language answers is less accurate than English.'}</p></div>}
       {aiOn&&<div className="style-box"><h3>Interview style</h3>
         <div className="segmented style-select" role="group" aria-label="Interview style">{(['general','product','services','startup'] as const).map(v=><button type="button" key={v} aria-pressed={style===v} onClick={()=>setStyle(v)} className={style===v?'active':''}>{STYLE_LABELS[v]}</button>)}</div>
         <p className="timing-note">{style==='general'?'A balanced interview for the role and topic.':style==='product'?'Deeper follow-ups on how and why, design choices, scale and trade-offs.':style==='services'?'Fundamentals: clear definitions, core concepts, standard problems and communication.':'Practical ownership: shipping under constraints, debugging and breadth across the stack.'} Styles describe a kind of employer; they do not copy any real company's questions.</p></div>}

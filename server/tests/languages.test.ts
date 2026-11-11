@@ -104,3 +104,23 @@ it('hints Hindi to the transcriber only for Hindi interviews', async () => {
   expect(transcriptions[0]).toMatch(/name="language"\r\n\r\nhi\r\n/);
   expect(transcriptions[1]).not.toMatch(/name="language"/);
 });
+
+it('offers Tamil, Telugu, Bengali and Marathi for HR and behavioural rounds only, with their own instruction and transcriber hint', async () => {
+  const scripts = { ta: /Tamil using Tamil script/, te: /Telugu using Telugu script/, bn: /Bengali using Bengali script/, mr: /Marathi using Devanagari script \(Marathi, not Hindi\)/ };
+  for (const [language, rule] of Object.entries(scripts)) {
+    calls.length = 0;
+    const hr = (await start({ language, type: 'HR', topic: 'General' }).expect(201)).body.interview;
+    expect(hr.language).toBe(language);
+    expect(calls[0].system).toMatch(rule);
+    expect(calls[0].system).toMatch(/quote must still be copied exactly/);
+    expect((await AIUsage.findOne({ interviewId: hr._id }).lean())!.promptVersion).toBe(`interviewer.v3+${language}`);
+    await start({ language, type: 'Behavioral', topic: 'Behavioral' }).expect(201);
+    expect((await start({ language }).expect(400)).body.error).toMatch(/HR and behavioural interviews/); // Technical
+    expect((await start({ language, type: 'HR', topic: 'General', mode: 'practice' }).expect(400)).body.error).toMatch(/need AI mode/);
+  }
+  transcriptions.length = 0;
+  const webm = Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(4096, 7)]);
+  const tamil = (await start({ language: 'ta', type: 'HR', topic: 'General' }).expect(201)).body.interview;
+  await owner.post(`/api/interviews/${tamil._id}/transcribe`).set('Content-Type', 'audio/webm').send(webm).expect(200);
+  expect(transcriptions[0]).toMatch(/name="language"\r\n\r\nta\r\n/);
+});

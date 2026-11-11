@@ -6,7 +6,9 @@ import type { rubricFor } from '../services/rubrics.js';
 export type InterviewType = 'Technical' | 'Behavioral' | 'HR';
 export type InterviewLevel = 'Beginner' | 'Intermediate' | 'Advanced';
 export type InterviewStatus = 'in_progress' | 'completed';
-export const INTERVIEW_LANGUAGES = ['en', 'hi', 'hinglish'] as const;
+// Tamil, Telugu, Bengali and Marathi (E2) are offered for HR and behavioural rounds only.
+export const REGIONAL_LANGUAGES = ['ta', 'te', 'bn', 'mr'] as const;
+export const INTERVIEW_LANGUAGES = ['en', 'hi', 'hinglish', ...REGIONAL_LANGUAGES] as const;
 export type InterviewLanguage = typeof INTERVIEW_LANGUAGES[number];
 // Interview styles shape AI questions like a kind of employer, without imitating any real company.
 export const INTERVIEW_STYLES = ['general', 'product', 'services', 'startup'] as const;

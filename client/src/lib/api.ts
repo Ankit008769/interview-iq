@@ -60,7 +60,9 @@ export function warmUpAI() {
   lastWarmUp = Date.now();
   api('/interviews/warmup', { method: 'POST' }).catch(() => {});
 }
-export type InterviewLanguage = 'en' | 'hi' | 'hinglish';
+export type InterviewLanguage = 'en' | 'hi' | 'hinglish' | 'ta' | 'te' | 'bn' | 'mr';
+// Offered for HR and behavioural interviews only (E2).
+export const REGIONAL_LANGUAGES = ['ta', 'te', 'bn', 'mr'] as const;
 export type InterviewStyle = 'general' | 'product' | 'services' | 'startup';
 export const STYLE_LABELS: Record<InterviewStyle, string> = { general: 'General', product: 'Product company', services: 'IT services', startup: 'Startup' };
 export type InterviewType = 'Technical' | 'Behavioral' | 'HR';
@@ -81,9 +83,9 @@ export interface SkillChange { skillId: string; label: string; from: number; to:
 export interface ProgressReport { weeks: { start: string; end: string; drills: number; interviews: number; averageScore: number | null }[]; gains: SkillChange[]; declines: SkillChange[] }
 // The learner's own time zone decides what counts as today for streaks and the interview countdown.
 export const timeZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata'; } catch { return 'Asia/Kolkata'; } };
-export const LANGUAGE_LABELS: Record<InterviewLanguage, string> = { en: 'English', hi: 'हिन्दी (Hindi)', hinglish: 'Hinglish' };
+export const LANGUAGE_LABELS: Record<InterviewLanguage, string> = { en: 'English', hi: 'हिन्दी (Hindi)', hinglish: 'Hinglish', ta: 'தமிழ் (Tamil)', te: 'తెలుగు (Telugu)', bn: 'বাংলা (Bengali)', mr: 'मराठी (Marathi)' };
 // Browser speech language for reading questions aloud; Hinglish is Roman script, so an Indian English voice reads it best.
-export const SPEECH_LANG: Record<InterviewLanguage, string | undefined> = { en: undefined, hi: 'hi-IN', hinglish: 'en-IN' };
+export const SPEECH_LANG: Record<InterviewLanguage, string | undefined> = { en: undefined, hi: 'hi-IN', hinglish: 'en-IN', ta: 'ta-IN', te: 'te-IN', bn: 'bn-IN', mr: 'mr-IN' };
 export interface Overview { total: number; completed: number; averageScore: number | null; recent: Interview[] }
 export type Mode = 'ai' | 'practice';
 export class ApiError extends Error {

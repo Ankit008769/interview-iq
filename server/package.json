@@ -17,7 +17,8 @@
     "project-check": "tsx src/scripts/projectCheck.ts",
     "design-check": "tsx src/scripts/designCheck.ts",
     "feature-report": "tsx src/scripts/featureReport.ts",
-    "billing": "tsx src/scripts/billing.ts"
+    "billing": "tsx src/scripts/billing.ts",
+    "language-check": "tsx src/scripts/languageCheck.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^8.4.0",
