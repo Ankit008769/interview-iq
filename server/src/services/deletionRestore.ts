@@ -46,6 +46,7 @@ export async function reconcileDeletions(db: Db, receipts: DeletionReceipt[]) {
     const userId = receipt.userId;
     if (!(userId instanceof ObjectId)) throw new Error('Invalid local deletion receipt');
     for (const name of ['interviews', 'documents', 'skill_states', 'study_plans', 'code_runs', 'projects', 'design_sessions', 'aiusages', 'authsessions', 'accounttokens']) await db.collection(name).deleteMany({ userId });
+    await db.collection('feature_events').deleteMany({ userId });
     await db.collection('quotabuckets').deleteMany({ _id: { $regex: `^${userId.toHexString()}:` } } as any);
     // Organisations: as removeUserFromOrgs, an organisation whose only admin this was goes with them.
     for (const { orgId } of await db.collection('memberships').find({ userId, role: 'admin' }).project({ orgId: 1 }).toArray()) {

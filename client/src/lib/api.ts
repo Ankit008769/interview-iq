@@ -188,3 +188,8 @@ export interface CohortReport {
     assignments: { id: string; done: boolean; late: boolean; score: number | null }[] }[];
   assignments: { id: string; title: string; spec: AssignmentSpec; dueAt: string; pack?: string; link: string; completed: number; onTime: number; total: number }[];
 }
+// Opt-in and satisfaction counts for optional features (D4), used to decide whether to keep them.
+export type FeatureName = 'video_review' | 'avatar';
+export function sendFeatureEvent(feature: FeatureName, kind: 'enabled' | 'disabled' | 'rating', rating?: number) {
+  return api('/account/feature-events', { method: 'POST', body: JSON.stringify({ feature, kind, ...(rating ? { rating } : {}) }) }).catch(() => {});
+}

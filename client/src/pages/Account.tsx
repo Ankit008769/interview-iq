@@ -1,4 +1,5 @@
 import { AIConsent } from '../components/AIConsent';
+import { SelfReviewSettings } from '../components/SelfReview';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, type User } from '../lib/api';
@@ -52,6 +53,7 @@ export function Account() {
     <section className="account-card"><h2>Delivery feedback</h2><p>When you answer by voice, Interview IQ counts your speaking pace and common filler words such as “um” and “basically”, from the transcript and recording length. These counts are never part of your score, no audio is kept, and tone, emotion and accent are not analysed.</p>
       <label className="consent-check"><input type="checkbox" checked={user?.preferences?.deliveryMetrics !== false} disabled={busy} onChange={e => void savePreference(e.target.checked)}/> Measure and show delivery feedback for my voice answers</label>
       <p>Turning this off stops measuring new recordings and hides existing delivery feedback.</p></section>
+    <section className="account-card"><SelfReviewSettings/></section>
     <section className="account-card"><h2>Export your data</h2><p>Download your profile, saved interviews, resumes and job descriptions, and usage records as JSON.</p><a className="button" href="/api/account/export">Download my data</a></section>
     <section className="account-card"><h2>Delete account</h2><p>Deletion revokes access immediately. Background cleanup removes your profile, interviews, resumes and job descriptions, usage and sessions. Backup copies expire separately; minimal deletion receipts are retained separately to prevent restoration of deleted accounts. Cleanup waits if that safety copy is temporarily unavailable.</p>
       <form className="form-stack" onSubmit={e=>{e.preventDefault(); void action('/account/delete',{password:deletePassword,confirmation},true);}}>

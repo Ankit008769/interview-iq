@@ -8,11 +8,11 @@ import type { Delivery } from '../lib/api';
 export function ReadAloud({ text, lang }: { text: string; lang?: string }) {
   const [speaking, setSpeaking] = useState(false);
   const supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
-  useEffect(() => { setSpeaking(false); return () => { if (supported) window.speechSynthesis.cancel(); }; }, [supported, text]);
+  useEffect(() => { setSpeaking(false); return () => { if (supported) { window.speechSynthesis.cancel(); window.dispatchEvent(new CustomEvent('iq-speech', { detail: 'end' })); } }; }, [supported, text]);
   if (!supported) return null;
   const toggle = () => {
     window.speechSynthesis.cancel();
-    if (speaking) { setSpeaking(false); return; }
+    if (speaking) { setSpeaking(false); window.dispatchEvent(new CustomEvent('iq-speech', { detail: 'end' })); return; }
     const utterance = new SpeechSynthesisUtterance(text);
     const voices = window.speechSynthesis.getVoices?.() ?? [];
     // Prefer a voice for the interview's language, then a local one.
@@ -20,9 +20,12 @@ export function ReadAloud({ text, lang }: { text: string; lang?: string }) {
     const voice = matching.find(v => v.localService) ?? matching[0] ?? (lang ? undefined : voices.find(v => v.localService));
     if (lang) utterance.lang = lang;
     if (voice) utterance.voice = voice;
-    utterance.onend = utterance.onerror = () => setSpeaking(false);
+    // The optional interviewer avatar listens for these to move its mouth with the speech.
+    const signal = (type: 'start' | 'boundary' | 'end') => window.dispatchEvent(new CustomEvent('iq-speech', { detail: type }));
+    utterance.onboundary = () => signal('boundary');
+    utterance.onend = utterance.onerror = () => { setSpeaking(false); signal('end'); };
     window.speechSynthesis.speak(utterance);
-    setSpeaking(true);
+    setSpeaking(true); signal('start');
   };
   return <button type="button" className="button secondary read-aloud" onClick={toggle} aria-pressed={speaking}>
     {speaking ? <><VolumeX size={15}/> Stop reading</> : <><Volume2 size={15}/> Read question aloud</>}

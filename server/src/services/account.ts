@@ -4,6 +4,7 @@ import { AuthSession, AccountToken, AccountDeletion } from '../models/Account.js
 import { User } from '../models/User.js';
 import { Interview } from '../models/Interview.js';
 import { AIUsage } from '../models/AIUsage.js';
+import { FeatureEvent } from '../models/FeatureEvent.js';
 import { CandidateDocument } from '../models/CandidateDocument.js';
 import { SkillState, StudyPlan } from '../models/Learning.js';
 import { CodeRun } from '../models/CodeRun.js';
@@ -59,6 +60,7 @@ export async function processAccountDeletions(now = new Date()) {
     await DesignSession.deleteMany({ userId });
     await removeUserFromOrgs(userId, (await User.findById(userId).select('email').lean())?.email);
     await AIUsage.deleteMany({ userId });
+    await FeatureEvent.deleteMany({ userId });
     await AuthSession.deleteMany({ userId });
     await AccountToken.deleteMany({ userId });
     await QuotaBucket.deleteMany({ _id: { $regex: `^${userId.toString()}:` } });

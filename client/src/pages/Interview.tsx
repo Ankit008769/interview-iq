@@ -6,6 +6,10 @@ import { LoadingScreen } from '../components/Layout';
 import { PausedCard, QuestionTimer, clock, useQuestionElapsed } from '../components/Timing';
 import { ReadAloud, VoiceAnswer } from '../components/Voice';
 import { QuestionSource } from '../components/Grounding';
+import { CameraCoach } from '../components/CameraCoach';
+import { InterviewerAvatar } from '../components/InterviewerAvatar';
+import { getPref, setPref } from '../lib/recordings';
+import { sendFeatureEvent } from '../lib/api';
 type InterviewResponse = { interview: InterviewModel; mode: Mode; serverNow?: string };
 export function InterviewRoom() {
   const {id}=useParams();const navigate=useNavigate();
@@ -35,6 +39,9 @@ export function InterviewRoom() {
     return () => { live = false; clearTimeout(timer); };
   }, [id, interview?.processingState]);
   const elapsed=useQuestionElapsed(interview,skew);
+  // Optional, per device: a drawn interviewer face that moves while the question is read aloud.
+  const [avatar,setAvatar]=useState(()=>getPref('avatar'));
+  const toggleAvatar=(on:boolean)=>{setPref('avatar',on);setAvatar(on);sendFeatureEvent('avatar',on?'enabled':'disabled');};
   async function post(path: string) {
     setBusy(true); setError('');
     try { apply(await api<InterviewResponse>(`/interviews/${id}/${path}`, {method:'POST'})); }
@@ -61,7 +68,7 @@ export function InterviewRoom() {
       {!waiting && limit && elapsed !== null && <QuestionTimer limit={limit} elapsed={elapsed} paused={paused} busy={busy} onPause={()=>post('pause')}/>}
       {!waiting && paused && <PausedCard busy={busy} onResume={()=>post('resume')}/>}
       {!waiting && paused && error && <div className="alert error" role="alert">{error}</div>}
-      {!waiting && !paused && <article className="card question-card"><div className="question-card-head"><span className="ai-avatar"><BrainCircuit size={24}/></span><div><b>{mode==='ai'?'AI Interviewer':'Practice Interviewer'}</b><span>Question {current} · {interview.currentTopic}</span></div><span className="question-badge"><Sparkles size={13}/> Question {current}</span></div><h2>{interview.currentQuestion}</h2><QuestionSource grounding={interview.currentQuestionGrounding}/><div className="question-foot"><Info size={16}/> Explain your thought process and use examples where possible.<ReadAloud text={interview.currentQuestion} lang={SPEECH_LANG[interview.language ?? 'en']}/></div></article>}
+      {!waiting && !paused && <article className="card question-card"><div className="question-card-head">{avatar?<InterviewerAvatar/>:<span className="ai-avatar"><BrainCircuit size={24}/></span>}<div><b>{mode==='ai'?'AI Interviewer':'Practice Interviewer'}</b><span>Question {current} · {interview.currentTopic}</span></div><span className="question-badge"><Sparkles size={13}/> Question {current}</span></div><h2>{interview.currentQuestion}</h2><QuestionSource grounding={interview.currentQuestionGrounding}/><div className="question-foot"><Info size={16}/> Explain your thought process and use examples where possible.<ReadAloud text={interview.currentQuestion} lang={SPEECH_LANG[interview.language ?? 'en']}/><label className="avatar-toggle"><input type="checkbox" checked={avatar} onChange={e=>toggleAvatar(e.target.checked)}/> Interviewer avatar</label></div></article>}
       {!waiting && !paused && <form className="card answer-card" onSubmit={submit}><div className="answer-header"><span><UserRound size={18}/> Your response</span><span>{answer.length}/3500</span></div><textarea value={answer} onChange={e=>setAnswer(e.target.value)} placeholder={'Start typing your answer here...\n\nTry explaining the concept, giving an example, and mentioning tradeoffs.'} minLength={10} maxLength={3500} required disabled={busy} rows={9}/>{mode==='ai' && transcription && <VoiceAnswer key={`${interview._id}:${interview.turns.length}`} interviewId={interview._id} disabled={busy} onBusy={setVoiceBusy} onTranscript={text=>{const combined=(answer.trim()?answer.trimEnd()+' ':'')+text;if(combined.length>3500)return false;setAnswer(combined);return true;}}/>}{timeUp && <p className="time-up-note" role="status">Time is up. Finish your thought and submit; your results will show how long this answer took.</p>}<div className="answer-actions"><span><CircleCheck size={15}/> {limit?`Timed round: ${clock(limit)} per question`:'You can take your time'}</span><button type="submit" disabled={busy||voiceBusy||answer.trim().length<10||answer.length>3500} className="button primary">{busy?'Thinking...':current===interview.totalQuestions?'Finish interview':'Submit & continue'} <Send size={16}/></button></div>{error&&<div className="alert error" role="alert">{error}</div>}</form>}
       {waiting && <div className="card answer-card" role="status" aria-live="polite">
         <h2>Your answer is saved</h2>
@@ -72,7 +79,7 @@ export function InterviewRoom() {
         {interview.processingState === 'failed' && <button className="button primary" disabled={busy} onClick={()=>post('retry')}>{busy ? 'Retrying...' : 'Retry processing'}</button>}
         {error && <div className="alert error" role="alert">{error}</div>}
       </div>}
-    </section><aside className="interview-aside"><div className="card session-card"><h3>Session overview</h3><div className="session-stat"><span>Role</span><b>{interview.role}</b></div><div className="session-stat"><span>Type</span><b>{interview.type}</b></div><div className="session-stat"><span>Difficulty</span><b>{interview.difficulty}</b></div>{limit&&<div className="session-stat"><span>Timing</span><b>{clock(limit)} per question</b></div>}<div className="session-stat"><span>Progress</span><b>{interview.turns.length} / {interview.totalQuestions} answered</b></div><div className="tiny-steps">{Array.from({length:interview.totalQuestions},(_,i)=><span key={i} className={i<interview.turns.length?'done':i===interview.turns.length?'current':''}>{i<interview.turns.length?<CircleCheck size={14}/>:i+1}</span>)}</div></div>
+    </section><aside className="interview-aside"><CameraCoach interviewId={interview._id} questionIndex={interview.turns.length} question={interview.currentQuestion} active={!waiting && !paused && interview.status!=='completed'}/><div className="card session-card"><h3>Session overview</h3><div className="session-stat"><span>Role</span><b>{interview.role}</b></div><div className="session-stat"><span>Type</span><b>{interview.type}</b></div><div className="session-stat"><span>Difficulty</span><b>{interview.difficulty}</b></div>{limit&&<div className="session-stat"><span>Timing</span><b>{clock(limit)} per question</b></div>}<div className="session-stat"><span>Progress</span><b>{interview.turns.length} / {interview.totalQuestions} answered</b></div><div className="tiny-steps">{Array.from({length:interview.totalQuestions},(_,i)=><span key={i} className={i<interview.turns.length?'done':i===interview.turns.length?'current':''}>{i<interview.turns.length?<CircleCheck size={14}/>:i+1}</span>)}</div></div>
       <div className="hint-box"><Sparkles size={18}/><span>{mode==='ai'?'Your follow-up questions adapt to what you say.':'Practice mode uses curated questions. Choose AI in setup for freshly generated, adaptive questions and scores.'}</span></div>
       {interview.turns.length>0&&<div className="card prior-card"><h3>Answered questions</h3>{interview.turns.map((t,i)=><details key={i}><summary><CircleCheck size={16}/> Question {i+1} <ArrowRight size={14}/></summary><p>{t.question}</p><blockquote>{t.answer}</blockquote></details>)}</div>}
     </aside></div>

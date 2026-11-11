@@ -294,3 +294,22 @@
 .pack-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:6px}.pack-option{border:1px solid #2b3449;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:6px;cursor:pointer;background:#0f1424;font-size:12px}
 .pack-option.active{border-color:#8266f2;box-shadow:0 0 0 2px #8266f233}.pack-option input{position:absolute;opacity:0;pointer-events:none}.pack-option b{font-size:13px}.pack-option span{color:#8d98b1;line-height:1.5}.pack-option ol{margin:4px 0 0;padding-left:18px;color:#c2cbdf;line-height:1.7}.pack-option em{color:#7e8aa6;font-style:normal}
 @media(max-width:760px){.org-grid,.campus-join-fields{grid-template-columns:1fr}.assignment-form .wide{grid-column:auto}.campus-card{padding:18px}.campus-list>li{align-items:flex-start}.join-code code{font-size:18px;letter-spacing:3px}}
+/* Video self-review and interviewer avatar (D4) */
+.camera-card{padding:18px;margin-bottom:16px;display:grid;gap:10px}.camera-card h3{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px;margin:0}.camera-card p{font-size:12px;line-height:1.6;margin:0;color:#a9b3c9}
+.optional-tag{font-size:10px;font-weight:700;letter-spacing:.5px;color:#a9b3c9;background:#22283d;border-radius:50px;padding:2px 8px}
+.camera-privacy{display:flex;gap:7px;align-items:flex-start;font-size:11.5px!important;color:#93a0bb!important}.camera-privacy svg{flex:none;margin-top:2px;color:#7ee0bd}
+.self-view{position:relative;border-radius:12px;overflow:hidden;background:#05070d;aspect-ratio:4/3}.self-view video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block}
+.framing-tip{position:absolute;left:8px;right:8px;bottom:8px;margin:0;padding:7px 10px;border-radius:9px;font-size:12px!important;font-weight:700;background:#0b1020d9;color:#e6eaf5!important}
+.framing-tip.warn{border:1px solid #8a6a3a;color:#f3d3a1!important}.framing-tip.ok{border:1px solid #3f8f72;color:#bdf3dc!important}
+.rec-dot{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#ff9fb0}.rec-dot svg{fill:#ff5c7a;color:#ff5c7a}
+.avatar-toggle{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:#a9b3c9;margin-left:12px;cursor:pointer}.avatar-toggle input{accent-color:#8266f2}
+.interviewer-avatar{flex:none}.interviewer-avatar .avatar-bg{fill:#2e2b52}.interviewer-avatar .avatar-hair{fill:#3b2f5e}.interviewer-avatar .avatar-face{fill:#e8c9a8}
+.interviewer-avatar .avatar-eye{fill:#2a2440}.interviewer-avatar .avatar-brow{stroke:#3b2f5e;stroke-width:1.6;fill:none;stroke-linecap:round}.interviewer-avatar .avatar-mouth{fill:#8a3b4a}
+.interviewer-avatar.speaking .avatar-bg{fill:#3a3470}.interviewer-avatar .avatar-mouth,.interviewer-avatar .avatar-eye{transition:ry .08s linear}
+@media (prefers-reduced-motion:reduce){.interviewer-avatar .avatar-mouth,.interviewer-avatar .avatar-eye{transition:none}}
+.self-review .recording-list{list-style:none;padding:0;margin:12px 0 0;display:grid;gap:12px}.self-review .recording-list>li{border:1px solid #273048;border-radius:12px;padding:13px 15px;background:#0f1424}
+.recording-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.recording-head>div:first-child{display:flex;flex-direction:column;gap:3px}.recording-head span{font-size:11.5px;color:#8592ad}
+.recording-question{font-size:12.5px;color:#c2cbdf;margin:8px 0}.review-video{width:100%;max-width:560px;border-radius:10px;background:#05070d;display:block;margin:6px 0}
+.framing-stats{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.framing-stats span{font-size:11px;font-weight:700;padding:4px 9px;border-radius:50px;background:#22283d;color:#c9d0e4}
+.framing-notes{margin:8px 0 0;padding-left:18px;font-size:12px;color:#f3d3a1;line-height:1.6}.framing-notes.ok{padding-left:0;color:#a9f0d2}
+.feature-rating{display:flex;align-items:center;gap:4px;margin-top:14px;font-size:12.5px;color:#c2cbdf}.feature-rating span{margin-right:8px}.feature-rating .icon-button:hover svg{fill:#f5c451;color:#f5c451}

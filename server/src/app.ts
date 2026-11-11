@@ -29,7 +29,8 @@ if (process.env.TRUST_PROXY_HOPS) {
   app.set('trust proxy', hops);
 }
 app.disable('x-powered-by');
-app.use(helmet());
+// Video self-review compiles MediaPipe's WebAssembly in the browser and plays recordings from blob: URLs.
+app.use(helmet({ contentSecurityPolicy: { directives: { scriptSrc: ["'self'", "'wasm-unsafe-eval'"], mediaSrc: ["'self'", 'blob:'] } } }));
 app.use(cors({ origin, credentials: true }));
 // Design drafts carry drawings and parse their own larger body (routes/design.ts); everything else stays at 100 KB.
 const jsonBody = express.json({ limit: '100kb' });

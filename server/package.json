@@ -15,7 +15,8 @@
     "comparison": "tsx src/scripts/providerComparison.ts",
     "coding:verify": "tsx src/scripts/codingVerify.ts",
     "project-check": "tsx src/scripts/projectCheck.ts",
-    "design-check": "tsx src/scripts/designCheck.ts"
+    "design-check": "tsx src/scripts/designCheck.ts",
+    "feature-report": "tsx src/scripts/featureReport.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^8.4.0",

@@ -15,6 +15,8 @@ import { CodeRun } from '../models/CodeRun.js';
 import { Project } from '../models/Project.js';
 import { DesignSession } from '../models/DesignSession.js';
 import { Membership, Organization } from '../models/Organization.js';
+import { FeatureEvent, FEATURES } from '../models/FeatureEvent.js';
+import { consumeQuota } from '../services/quotas.js';
 import { accountVersionFilter, clearSession, userView } from '../services/account.js';
 import { authLimit, validPassword } from './auth.js';
 const router = Router(); router.use(requireAuth);
@@ -147,8 +149,21 @@ router.get('/export', async (req, res, next) => {
       if (res.destroyed) return;
       await write((first ? '' : ',') + JSON.stringify(usage)); first = false;
     }
-    res.end(']}');
+    await write('],"featureEvents":' + JSON.stringify(await FeatureEvent.find({ userId }).sort({ createdAt: 1 }).lean()));
+    res.end('}');
   } catch (err) { if (res.headersSent) res.destroy(); else next(err); }
+});
+// Optional-feature signals (D4): switching video self-review or the avatar on or off, and a 1–5 rating.
+router.post('/feature-events', async (req, res, next) => {
+  try {
+    const body = z.object({ feature: z.enum(FEATURES), kind: z.enum(['enabled', 'disabled', 'rating']), rating: z.number().int().min(1).max(5).optional() })
+      .refine(b => (b.kind === 'rating') === (b.rating !== undefined)).safeParse(req.body);
+    if (!body.success) { res.status(400).json({ error: 'Invalid feature event.' }); return; }
+    const userId = (req as AuthRequest).userId;
+    await consumeQuota(userId, 'feature events', 60, 86_400_000);
+    await FeatureEvent.create({ userId, ...body.data });
+    res.status(201).json({ recorded: true });
+  } catch (err) { next(err); }
 });
 router.post('/delete', authLimit, async (req, res, next) => {
   try {

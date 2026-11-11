@@ -8,6 +8,7 @@ import { TurnTiming, clock } from '../components/Timing';
 import { QuestionSource } from '../components/Grounding';
 import { DeliveryPanel } from '../components/Delivery';
 import { useAuth } from '../components/AuthProvider';
+import { SelfReview } from '../components/SelfReview';
 export function Results() {
   const {id}=useParams();const [interview,setInterview]=useState<Interview|null>(null);const [error,setError]=useState('');
   const {user,setUser}=useAuth();const [deliveryOff,setDeliveryOff]=useState(false);
@@ -39,6 +40,7 @@ export function Results() {
   {hasEvidence && <div className="card feedback-card"><h3>Evidence-based scorecard</h3><p>Choose a criterion to highlight its supporting words in your answer. The overall score averages every criterion; a criterion with no evidence in your answer counts as 0.</p><p>Quote matching verifies where evidence comes from; it does not prove the AI's interpretation is correct. These ratings have not yet been calibrated against expert reviewers.</p><p>If a rating looks wrong, you can ask for a second AI review of up to 3 ratings in this interview. It re-checks only your saved answer, and the score can go up, down or stay the same.</p>{revised>0&&<p className="challenge-summary">{revised} {revised===1?'rating was':'ratings were'} changed by a second AI review. The overall estimate includes {revised===1?'this change':'these changes'}.</p>}</div>}
   {user?.preferences?.deliveryMetrics!==false && !!interview.deliveryClips?.length && <DeliveryPanel clips={interview.deliveryClips} onTurnOff={turnOffDelivery}/>}
   {deliveryOff && <p className="card feedback-card" role="status">Delivery feedback is off. Turn it back on in <Link to="/account">Account</Link>.</p>}
+  <SelfReview interviewId={interview._id}/>
   {feedback?.rubric && <RubricGuide rubric={feedback.rubric}/>}
   <div className="section-title space-top"><div><h3>Your answers</h3><p>Review everything you shared during this interview</p></div></div>
   <div className="answer-history">{interview.turns.map((turn,i)=>{

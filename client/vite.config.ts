@@ -10,6 +10,12 @@ const fonts = fileURLToPath(new URL('./node_modules/@excalidraw/excalidraw/dist/
 const target = fileURLToPath(new URL('./public/excalidraw-assets/fonts', import.meta.url));
 if (existsSync(fonts)) cpSync(fonts, target, { recursive: true, filter: source => !source.split(sep).includes('Xiaolai') });
 
+// Video self-review runs MediaPipe in the browser from the app's own files (the face model is committed in
+// public/mediapipe). Only the main-thread WebAssembly builds, with and without SIMD, are copied.
+const wasm = fileURLToPath(new URL('./node_modules/@mediapipe/tasks-vision/wasm', import.meta.url));
+const wasmTarget = fileURLToPath(new URL('./public/mediapipe/wasm', import.meta.url));
+if (existsSync(wasm)) cpSync(wasm, wasmTarget, { recursive: true, filter: source => !/module_internal/.test(source) });
+
 export default defineConfig({
   plugins: [react()],
   server: { proxy: { '/api': 'http://127.0.0.1:5000' } },
