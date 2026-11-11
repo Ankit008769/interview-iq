@@ -14,6 +14,7 @@ import documentRoutes from './routes/documents.js';
 import learningRoutes from './routes/learning.js';
 import codingRoutes from './routes/coding.js';
 import projectRoutes from './routes/projects.js';
+import designRoutes from './routes/design.js';
 import { QuotaError } from './services/quotas.js';
 import { interviewMode } from './services/ai.js';
 import { localModelStatus, localVoiceStatus } from './services/modelProvider.js';
@@ -29,7 +30,9 @@ if (process.env.TRUST_PROXY_HOPS) {
 app.disable('x-powered-by');
 app.use(helmet());
 app.use(cors({ origin, credentials: true }));
-app.use(express.json({ limit: '100kb' }));
+// Design drafts carry drawings and parse their own larger body (routes/design.ts); everything else stays at 100 KB.
+const jsonBody = express.json({ limit: '100kb' });
+app.use((req, res, next) => (req.method === 'PUT' && /^\/api\/design\/sessions\/[^/]+\/draft$/.test(req.path) ? next() : jsonBody(req, res, next)));
 app.use(cookieParser());
 // With cookie authentication, reject cross-origin browser writes.
 app.use((req, res, next) => {
@@ -52,6 +55,7 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/learning', learningRoutes);
 app.use('/api/coding', codingRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/design', designRoutes);
 if (process.env.SERVE_CLIENT === 'true') {
   const clientDist = fileURLToPath(new URL('../../client/dist/', import.meta.url));
   app.use(express.static(clientDist));

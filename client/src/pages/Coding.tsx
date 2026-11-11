@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { LabTabs } from './Design';
 import { Bug, CheckCircle2, ChevronRight, Code2, Database, ShieldCheck, Sparkles, TriangleAlert } from 'lucide-react';
 import { api, type CodingProblemSummary, type CodingStatus } from '../lib/api';
 import { LoadingScreen } from '../components/Layout';
@@ -23,6 +24,7 @@ export function CodingList() {
   if (!problems) return error ? <div className="alert error" role="alert">{error}</div> : <LoadingScreen/>;
   const solved = problems.filter(p => p.solved).length;
   return <div className="page-enter coding-page">
+    <LabTabs current="coding"/>
     <div className="page-heading"><div><span className="eyebrow"><Code2 size={14}/> CODING LAB</span><h1>Coding lab</h1>
       <p>Write code in JavaScript, TypeScript, Python, Java or C++, run it against hidden tests, then explain your approach to the AI interviewer.</p></div></div>
     {status && !status.runner.ready && <div className="alert warning" role="status"><TriangleAlert size={16}/> {status.runner.configured ? 'The code runner is starting or unavailable right now. You can read problems and write code; running may take a moment or fail until it is back.' : 'Code running is not set up on this server, so problems can be read but not run.'}</div>}

@@ -10,6 +10,7 @@ import { CandidateDocument } from '../src/models/CandidateDocument.js';
 import { SkillState, StudyPlan } from '../src/models/Learning.js';
 import { CodeRun } from '../src/models/CodeRun.js';
 import { Project } from '../src/models/Project.js';
+import { DesignSession } from '../src/models/DesignSession.js';
 import { QuotaBucket } from '../src/services/quotas.js';
 import { issueAccountToken, processAccountDeletions, tokenHash } from '../src/services/account.js';
 import * as mail from '../src/services/accountMail.js';
@@ -111,6 +112,7 @@ it('deletion revokes access immediately, retries cleanup and removes late writes
   await SkillState.create([{userId:a.id,skillId:'technical.depth',mean:3,variance:0.5,observations:1,card:{due:new Date()},history:[],basisAt:new Date()},{userId:b.id,skillId:'technical.depth',mean:3,variance:0.5,observations:1,card:{due:new Date()},history:[],basisAt:new Date()}]);await StudyPlan.create([{userId:a.id,interviewDate:new Date(Date.now()+20*86400000),focusTypes:['Technical'],dailyMinutes:20},{userId:b.id,interviewDate:new Date(Date.now()+20*86400000),focusTypes:['Technical'],dailyMinutes:20}]);
   await CodeRun.create([{userId:a.id,problemId:'two-sum',language:'python',mode:'submit',source:'def two_sum(): pass',verdict:'wrong_answer',passed:0,total:3,tests:[]},{userId:b.id,problemId:'two-sum',language:'python',mode:'submit',source:'def two_sum(): pass',verdict:'wrong_answer',passed:0,total:3,tests:[]}]);
   await Project.create([{userId:a.id,name:'Chat',files:[{path:'a.js',language:'javascript',size:10,lines:1,text:'const a = 1;'}],skipped:{ignoredFolder:0,binaryOrOther:0,tooLarge:0,secretFile:0,overLimit:0}},{userId:b.id,name:'Chat',files:[{path:'a.js',language:'javascript',size:10,lines:1,text:'const a = 1;'}],skipped:{ignoredFolder:0,binaryOrOther:0,tooLarge:0,secretFile:0,overLimit:0}}]);
+  await DesignSession.create([{userId:a.id,promptId:'url-shortener'},{userId:b.id,promptId:'url-shortener'}]);
   await AIUsage.create({userId:a.id});await issueAccountToken((await User.findById(a.id))!,'reset');
   await a.agent.post('/api/account/delete').send({password,confirmation:'wrong'}).expect(400);
   await a.agent.post('/api/account/delete').send({password,confirmation:'DELETE'}).expect(202);
@@ -121,8 +123,8 @@ it('deletion revokes access immediately, retries cleanup and removes late writes
   await expect(processAccountDeletions(new Date(Date.now()+61000))).rejects.toThrow('temporary DB failure');
   expect(await User.findById(a.id)).not.toBeNull();
   await processAccountDeletions(new Date(Date.now()+61000));expect(await User.findById(a.id)).toBeNull();
-  for(const model of [Interview,CandidateDocument,SkillState,StudyPlan,CodeRun,Project,AIUsage,AuthSession,AccountToken] as any[]) expect(await model.countDocuments({userId:a.id})).toBe(0);
-  expect(await CodeRun.countDocuments({userId:b.id})).toBe(1);expect(await Project.countDocuments({userId:b.id})).toBe(1);
+  for(const model of [Interview,CandidateDocument,SkillState,StudyPlan,CodeRun,Project,DesignSession,AIUsage,AuthSession,AccountToken] as any[]) expect(await model.countDocuments({userId:a.id})).toBe(0);
+  expect(await CodeRun.countDocuments({userId:b.id})).toBe(1);expect(await Project.countDocuments({userId:b.id})).toBe(1);expect(await DesignSession.countDocuments({userId:b.id})).toBe(1);
   expect(await CandidateDocument.countDocuments({userId:b.id})).toBe(1);expect(await SkillState.countDocuments({userId:b.id})).toBe(1);expect(await StudyPlan.countDocuments({userId:b.id})).toBe(1);
   expect(await QuotaBucket.countDocuments({_id:{$regex:`^${a.id}:`}})).toBe(0);
   expect(await AccountDeletion.countDocuments({userId:a.id})).toBe(1);

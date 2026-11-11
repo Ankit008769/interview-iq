@@ -26,7 +26,7 @@ test('the coding lab runs code against tests, then the interviewer asks and revi
     expect(consent.disclosure.coding).toMatch(/no network access/);
     expect((await page.request.post('/api/account/ai-consent', { data: { version: consent.disclosure.version, accepted: true } })).status()).toBe(200);
 
-    await page.getByRole('link', { name: 'Coding' }).first().click();
+    await page.getByRole('link', { name: 'Labs' }).first().click();
     await expect(page).toHaveURL(/\/coding$/);
     await expect(page.getByRole('heading', { name: 'Coding lab', level: 1 })).toBeVisible();
     await page.getByRole('group', { name: 'Problem type' }).getByRole('button', { name: 'SQL' }).click();

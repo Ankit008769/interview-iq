@@ -10,6 +10,10 @@ export const STAR_PROMPT_VERSION = 'star-coverage.v1';
 export const CODING_FOLLOWUP_PROMPT_VERSION = 'coding-followup.v1';
 export const PROJECT_QUESTION_PROMPT_VERSION = 'interviewer-project.v1';
 export const PROJECT_CLAIMS_PROMPT_VERSION = 'project-claims.v1';
+export const DESIGN_FOLLOWUP_PROMPT_VERSION = 'design-followup.v1';
+export const DESIGN_REVIEW_PROMPT_VERSION = 'design-review.v1';
+// Asked only when the review scored criteria without a quote that is in the candidate's text.
+export const DESIGN_QUOTE_PROMPT_VERSION = 'design-quote.v1';
 export const CODING_REVIEW_PROMPT_VERSION = 'coding-review.v1';
 export const anchors = [
   'Explicit evidence is incorrect, off-topic or contradicts this criterion.',
@@ -54,4 +58,16 @@ export const CODING_RUBRIC = { version: '2026-10-25.coding.v1', scale: '0–5; i
     { id: 'complexity', label: 'Complexity reasoning', guidance: 'Does the explanation state time and space complexity correctly for this code, and connect it to the input size?' },
     { id: 'quality', label: 'Code quality', guidance: 'Is the code readable and organized: clear names, no needless duplication, edge cases handled deliberately?' },
     { id: 'explanation', label: 'Explanation', guidance: 'Does the explanation answer the interviewer question clearly and accurately describe what the code does?' },
+  ] };
+
+// System design (C3): the trade-off rubric. Capacity verdicts and structural observations come from the app;
+// evidence quotes must come from the candidate's labels, notes, explanation or follow-up answers.
+export const DESIGN_RUBRIC = { version: '2026-11-11.design.v1', scale: '0–5; insufficient evidence is unscored', anchors,
+  criteria: [
+    { id: 'requirements', label: 'Requirements and scope', guidance: 'Does the design address the functional and non-functional requirements, and state assumptions?' },
+    { id: 'architecture', label: 'High-level architecture', guidance: 'Are the components and their connections sensible for the problem, with clear responsibilities?' },
+    { id: 'data', label: 'Data model and storage', guidance: 'Are storage choices justified by the access patterns, consistency needs and data size?' },
+    { id: 'scale', label: 'Scalability and capacity', guidance: 'Does the design handle the stated load and peaks, using sound estimates, caching, partitioning or queues where they help?' },
+    { id: 'reliability', label: 'Reliability and failure handling', guidance: 'Does it avoid single points of failure and say what happens when components fail or slow down?' },
+    { id: 'tradeoffs', label: 'Trade-off reasoning', guidance: 'Does the candidate compare alternatives and explain why their choice fits, including under the changed constraints?' },
   ] };

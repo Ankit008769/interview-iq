@@ -13,6 +13,7 @@ import { CandidateDocument } from '../models/CandidateDocument.js';
 import { SkillState, StudyPlan } from '../models/Learning.js';
 import { CodeRun } from '../models/CodeRun.js';
 import { Project } from '../models/Project.js';
+import { DesignSession } from '../models/DesignSession.js';
 import { accountVersionFilter, clearSession, userView } from '../services/account.js';
 import { authLimit, validPassword } from './auth.js';
 const router = Router(); router.use(requireAuth);
@@ -131,6 +132,11 @@ router.get('/export', async (req, res, next) => {
     for await (const project of Project.find({ userId }).lean().cursor()) {
       if (res.destroyed) return;
       await write((first ? '' : ',') + JSON.stringify(project)); first = false;
+    }
+    await write('],"designSessions":['); first = true;
+    for await (const session of DesignSession.find({ userId }).lean().cursor()) {
+      if (res.destroyed) return;
+      await write((first ? '' : ',') + JSON.stringify(session)); first = false;
     }
     await write('],"usage":['); first = true;
     for await (const usage of AIUsage.find({ userId }).lean().cursor()) {

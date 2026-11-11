@@ -27,3 +27,5 @@ calibration/output/
 **/tfplan
 **/*.tfvars
 !**/*.tfvars.example
+# Copied from node_modules at build time (client/vite.config.ts).
+client/public/excalidraw-assets/

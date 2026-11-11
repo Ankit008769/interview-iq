@@ -144,3 +144,17 @@ export interface ClaimCheck { documentId: string; documentTitle: string; dropped
   claims: { quote: string; keywords: string[]; status: 'supported' | 'partial' | 'not_found'; evidence: ClaimEvidence[] }[] }
 export interface ProjectDetail extends ProjectSummary { files: { path: string; language: string; lines: number; size: number }[]; symbols: CodeSymbol[];
   dependencies: { name: string; version?: string; source: string }[]; claimChecks: ClaimCheck[] }
+// System design (C3). The diagram is read by the app; the AI asks follow-ups and reviews.
+export type StorageUnit = 'KB' | 'MB' | 'GB' | 'TB' | 'PB';
+export interface DesignPromptSummary { id: string; title: string; difficulty: Interview['difficulty']; summary: string; sessions: number; reviewed: boolean }
+export interface DesignPromptDetail { id: string; title: string; difficulty: Interview['difficulty']; summary: string; functional: string[]; nonFunctional: string[]; scale: string;
+  estimates: { id: 'writeQps' | 'peakReadQps' | 'storagePerYear'; label: string; unit: string }[]; storageUnits: StorageUnit[] }
+export interface DesignEstimates { writeQps?: number | null; peakReadQps?: number | null; storagePerYear?: { value: number; unit: StorageUnit } | null }
+export interface DesignSessionView {
+  id: string; promptId: string; status: 'drafting' | 'submitted' | 'reviewed'; scene: unknown[]; estimates: DesignEstimates; explanation: string; createdAt: string; submittedAt?: string;
+  graph?: { nodes: { id: string; label: string; type: string }[]; edges: { from: string; to: string; label?: string }[]; notes: string[]; danglingArrows: number; unlabeledShapes: number };
+  analysis?: { present: string[]; missing: string[]; isolated: string[]; observations: string[] };
+  estimateCheck?: { id: string; label: string; given: number | null; reference: number; unit: string; ratio: number | null; verdict: 'close' | 'order_of_magnitude' | 'off' | 'missing'; formula: string }[];
+  followUps: { index: number; constraint: string; question: string; referenced: 'model' | 'added'; answer?: string; rating?: number }[];
+  review?: { criteria: CriterionRating[]; summary: string; createdAt: string };
+}

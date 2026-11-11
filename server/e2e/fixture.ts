@@ -70,7 +70,10 @@ const gateway = createServer(async (req, res) => {
   if (input.candidateExplanation && failNextCodingReview) {
     failNextCodingReview = false; res.writeHead(503); res.end(JSON.stringify({ error: 'Test provider unavailable' })); return;
   }
-  const value = input.target ? { question: `Why does ${input.target.name} in ${input.target.path} work this way? (question ${input.questionNumber})`, topic: 'Project' }
+  const value = input.constraint ? { question: `${input.constraint} How does \`${input.design.components[0]?.label ?? 'your design'}\` cope?` }
+    : input.candidateText ? { summary: 'A sensible first design; failure handling needs more detail.', criteria: ['requirements', 'architecture', 'data', 'scale', 'reliability', 'tradeoffs'].map((criterionId, i) =>
+      ({ criterionId, score: i < 4 ? 4 : null, quote: i < 4 ? input.candidateText.split('\n')[0] : null, rationale: i < 4 ? 'Shown in the design.' : '', improvement: i < 4 ? 'Explain the failure path.' : null })) }
+    : input.target ? { question: `Why does ${input.target.name} in ${input.target.path} work this way? (question ${input.questionNumber})`, topic: 'Project' }
     : input.resume ? { claims: [{ quote: 'Built a real-time chat app with Socket.IO', keywords: ['socket.io', 'broadcast'] }, { quote: 'Deployed it on Kubernetes', keywords: ['kubernetes'] }] }
     : input.candidateExplanation ? { summary: 'A hash map gives a one-pass solution; the complexity claim is right.', criteria: [
       { criterionId: 'approach', score: 5, quote: 'new Map()', rationale: 'A hash map suits the lookups.', improvement: null },

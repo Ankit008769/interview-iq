@@ -5,7 +5,7 @@ import { useAuth } from './AuthProvider';
 const nav = [
   { to: '/dashboard', label: 'Overview', Icon: LayoutDashboard },
   { to: '/learn', label: 'Learn', Icon: GraduationCap },
-  { to: '/coding', label: 'Coding', Icon: Code2 },
+  { to: '/coding', label: 'Labs', Icon: Code2 },
   { to: '/interview/new', label: 'New interview', Icon: PlusCircle },
   { to: '/documents', label: 'Resume & code', Icon: FileText },
   { to: '/account', label: 'Account', Icon: UserRound },
