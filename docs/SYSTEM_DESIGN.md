@@ -17,7 +17,7 @@ Excalidraw board, estimate the load it must handle and explain their key decisio
 | Trade-off rubric | Yes: six criteria with verified quotes (`DESIGN_RUBRIC`). |
 | "Changing constraints" follow-ups | Yes: two per attempt, from three per problem. |
 | 30 calibrated design prompts | 30 prompts. Their reviewer is checked with two independent judges (below), not with human raters. |
-| Exit gate: rater agreement on the design rubric ICC ≥ 0.65 | Met between two AI judges: ICC(A,1) 0.71 on 21 synthetic designs (below). Human raters are not used, by the owner's decision. |
+| Exit gate: rater agreement on the design rubric ICC ≥ 0.65 | Met between two AI judges: ICC(A,1) 0.91 on 18 synthetic designs after the quote request (0.71 before it; below). Human raters are not used, by the owner's decision. |
 | Exit gate: users rate follow-ups ≥ 4/5 | Each follow-up has a 1–5 relevance rating, which is collected. No user ratings exist yet. |
 
 ## Problems and requirement cards
@@ -120,8 +120,25 @@ was added.
 
 Since then, a scored criterion without a verifiable quote triggers one extra request
 (`design-quote.v1`). It asks only for the exact supporting sentences; it cannot change the scores, and the
-quotes are still checked word for word. A rerun with this step was cut short when the local model server
-stopped, so its figures will be added here when it completes.
+quotes are still checked word for word.
+
+Rerun with the quote request, 12 November 2026, on the same 21 designs:
+
+| | qwen3.5:4b | gemma4:e2b |
+|---|---|---|
+| Designs reviewed (the rest returned invalid JSON and failed) | 19 of 21 | 20 of 21 |
+| Mean score: strong / medium / weak designs | 90 / 58 / 0 | 83 / 58 / 0 |
+| Pairs ordered correctly by quality (concordance) | 0.95 (was 0.85) | 1.00 (was 0.96) |
+| Spearman correlation with design quality | 0.90 (was 0.72) | 0.97 (was 0.91) |
+| Scored criteria still without a verifiable quote | 10 | 0 |
+
+- **Agreement between the judges.** ICC(A,1) is **0.91** on the 18 designs both judges reviewed, up from
+  0.71.
+- **The quote request fixed qwen's empty-quote failure.** The strong pastebin design now scores 100 instead
+  of 0. Some qwen quotes still do not match the text, and those criteria stay "not enough evidence".
+- **Failed reviews.** 3 of the 42 failed because the model returned invalid JSON. In the app the candidate
+  sees an error and can retry, and their answers are kept.
+- **Follow-ups** again named the candidate's own components for 7 of 7 designs.
 
 Two caveats:
 - These are synthetic designs and two small local judges, so this is a consistency check, not a
