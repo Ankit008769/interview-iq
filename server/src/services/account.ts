@@ -17,7 +17,8 @@ import { QuotaBucket } from './quotas.js';
 import { replicateDeletionReceipt } from './deletionLedger.js';
 export const accountVersionFilter = (version: number) => version === 0 ? { $or: [{authVersion:0}, {authVersion:{$exists:false}}] } : {authVersion:version};
 export const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
-export const sessionCookie = () => ({ httpOnly: true, sameSite: 'lax' as const, secure: process.env.NODE_ENV === 'production', path: '/' });
+// COOKIE_SECURE=true forces Secure cookies outside production, for example when sharing a laptop copy over HTTPS.
+export const sessionCookie = () => ({ httpOnly: true, sameSite: 'lax' as const, secure: process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true', path: '/' });
 export async function setSession(res: Response, user: { _id: { toString(): string }; authVersion?: number }) {
   const token = randomBytes(32).toString('hex');
   await AuthSession.create({ tokenHash: tokenHash(token), userId: user._id.toString(), version: user.authVersion ?? 0, expiresAt: new Date(Date.now() + 7 * 86400_000) });
