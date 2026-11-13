@@ -32,6 +32,9 @@ test('camera practice gives live tips, records each answer on the device and pla
   await panel.getByRole('button', { name: 'Turn on camera' }).click();
   await expect(panel.getByTestId('framing-tip')).toHaveText('We cannot see your face. Sit facing the camera.', { timeout: 30_000 });
   await expect(panel.getByText('Recording on this device')).toBeVisible();
+  // No face in view: the practice integrity alert shows (and beeps; sound alerts are on by default).
+  await expect(panel.getByLabel('Sound alerts')).toBeChecked();
+  await expect(panel.getByTestId('proctor-alert')).toHaveText('Your face left the frame.', { timeout: 15_000 });
 
   // The optional avatar follows the read-aloud speech events.
   await page.getByLabel('Interviewer avatar').check();
@@ -58,6 +61,7 @@ test('camera practice gives live tips, records each answer on the device and pla
   await expect(first).toContainText('Question 1');
   await expect(first).toContainText(/Face in view 0%/);
   await expect(first).toContainText(/out of view for much of the answer/);
+  await expect(first.getByTestId('alert-summary')).toContainText('face out of view');
   await first.getByRole('button', { name: 'Watch' }).click();
   const video = first.locator('video');
   await expect(video).toHaveAttribute('src', /^blob:/);

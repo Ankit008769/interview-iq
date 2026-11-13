@@ -43,6 +43,7 @@ export function SelfReview({ interviewId }: { interviewId: string }) {
       {r.framing.frames > 0 && <div className="framing-stats">
         <span>Face in view {r.framing.faceVisible}%</span><span>Centred {r.framing.centred}%</span><span>Eye level {r.framing.eyeLineOk}%</span><span>Looking at the camera {r.framing.eyeContact}%</span><span>Good light {r.framing.lightingOk}%</span>
       </div>}
+      {r.alerts && Object.values(r.alerts).some(n => n > 0) && <p className="proctor-summary" data-testid="alert-summary">Alerts during this answer: {([['multiple_faces', 'another face or person'], ['face_away', 'face out of view'], ['phone', 'phone in view'], ['object', 'book, screen or device in view']] as const).filter(([k]) => r.alerts![k] > 0).map(([k, label]) => `${label} ${r.alerts![k]}×`).join(', ')}.</p>}
       {r.framing.tips.length > 0 ? <ul className="framing-notes">{r.framing.tips.map(t => <li key={t}>{t}</li>)}</ul> : r.framing.frames > 0 ? <p className="framing-notes ok">Framing looked good throughout.</p> : null}
     </li>)}</ul>
     {!rated ? <div className="feature-rating"><span>Was video self-review useful?</span>{[1, 2, 3, 4, 5].map(n => <button key={n} type="button" className="icon-button" aria-label={`Rate ${n} out of 5`} onClick={() => rate(n)}><Star size={17}/></button>)}</div>

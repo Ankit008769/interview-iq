@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, CameraOff, CircleDot, ShieldCheck } from 'lucide-react';
 import { checkFrame, faceBox, liveTip, luminance, summarise, type FrameCheck, type Point } from '../lib/framing';
 import { getPref, purgeExpired, RETENTION_DAYS, saveRecording, setPref } from '../lib/recordings';
+import { AlertTracker, beep, primeAudio, type AlertKind } from '../lib/proctor';
 import { sendFeatureEvent } from '../lib/api';
 
 type Landmarker = { detectForVideo(video: HTMLVideoElement, ts: number): { faceLandmarks: Point[][] }; close(): void };
+type Detector = { detectForVideo(video: HTMLVideoElement, ts: number): { detections: { categories: { categoryName: string; score: number }[] }[] }; close(): void };
 const MAX_MS = 10 * 60_000;
 const TYPES = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
 
@@ -15,10 +17,22 @@ async function loadLandmarker(): Promise<Landmarker> {
   const files = await FilesetResolver.forVisionTasks(`${window.location.origin}/mediapipe/wasm`);
   const task = await FaceLandmarker.createFromOptions(files, {
     baseOptions: { modelAssetPath: `${window.location.origin}/mediapipe/face_landmarker.task`, delegate: 'CPU' },
-    runningMode: 'VIDEO', numFaces: 1, outputFaceBlendshapes: false, outputFacialTransformationMatrixes: false,
+    // Up to three faces, so another person in view can be noticed; tips use the first face found.
+    runningMode: 'VIDEO', numFaces: 3, outputFaceBlendshapes: false, outputFacialTransformationMatrixes: false,
   });
   silenceUsageLogging(task);
   return task as unknown as Landmarker;
+}
+// Object detection (EfficientDet-Lite0, COCO labels), only for the labels the alerts use.
+async function loadDetector(): Promise<Detector> {
+  const { ObjectDetector, FilesetResolver } = await import('@mediapipe/tasks-vision');
+  const files = await FilesetResolver.forVisionTasks(`${window.location.origin}/mediapipe/wasm`);
+  const task = await ObjectDetector.createFromOptions(files, {
+    baseOptions: { modelAssetPath: `${window.location.origin}/mediapipe/efficientdet_lite0.tflite`, delegate: 'CPU' },
+    runningMode: 'VIDEO', scoreThreshold: 0.4, maxResults: 6, categoryAllowlist: ['cell phone', 'book', 'laptop', 'tv', 'remote', 'person'],
+  });
+  silenceUsageLogging(task);
+  return task as unknown as Detector;
 }
 
 // MediaPipe 1.1.1 queues usage statistics and posts them to odml.pa.googleapis.com every minute and on close.
@@ -45,6 +59,12 @@ export function CameraCoach({ interviewId, questionIndex, question, active }: { 
   const recorder = useRef<{ rec: MediaRecorder; chunks: Blob[]; checks: FrameCheck[]; started: number; index: number; question: string; timer: ReturnType<typeof setTimeout> } | null>(null);
   const recent = useRef<FrameCheck[]>([]);
   const canvas = useRef<HTMLCanvasElement | null>(null);
+  // Practice integrity alerts: another face, face out of view, a phone or other object in view.
+  const detector = useRef<Detector | null>(null);
+  const tracker = useRef(new AlertTracker());
+  const [alert, setAlert] = useState<{ kind: AlertKind; text: string; at: number } | null>(null);
+  const [sound, setSound] = useState(() => getPref('sound'));
+  const soundRef = useRef(sound); soundRef.current = sound;
 
   // Stops the current answer's recording and saves it with its framing summary.
   const finish = useCallback(() => {
@@ -56,7 +76,7 @@ export function CameraCoach({ interviewId, questionIndex, question, active }: { 
       const blob = new Blob(current.chunks, { type: current.rec.mimeType || 'video/webm' });
       if (!blob.size) return;
       void saveRecording({ id: `${interviewId}:${current.index}`, interviewId, questionIndex: current.index, question: current.question, blob, mimeType: blob.type,
-        durationMs, createdAt: Date.now(), framing: summarise(current.checks) })
+        durationMs, createdAt: Date.now(), framing: summarise(current.checks), alerts: { ...tracker.current.counts } })
         .then(() => window.dispatchEvent(new Event('recordings-changed')))
         .catch(() => setMessage('This recording could not be saved; the browser may be out of storage.'));
     };
@@ -70,6 +90,7 @@ export function CameraCoach({ interviewId, questionIndex, question, active }: { 
     const entry = { rec, chunks: [] as Blob[], checks: [] as FrameCheck[], started: Date.now(), index: questionIndex, question, timer: setTimeout(() => finish(), MAX_MS) };
     rec.ondataavailable = e => { if (e.data.size) entry.chunks.push(e.data); };
     rec.start(1000);
+    tracker.current = new AlertTracker(); // alert counts are kept per answer
     recorder.current = entry; setRecording(true);
   }, [questionIndex, question, finish]);
 
@@ -77,8 +98,9 @@ export function CameraCoach({ interviewId, questionIndex, question, active }: { 
     finish();
     stream.current?.getTracks().forEach(t => t.stop()); stream.current = null;
     landmarker.current?.close(); landmarker.current = null;
+    detector.current?.close(); detector.current = null;
     if (video.current) video.current.srcObject = null;
-    setStatus('off'); setTip(null);
+    setStatus('off'); setTip(null); setAlert(null);
   }, [finish]);
 
   const start = useCallback(async () => {
@@ -90,6 +112,7 @@ export function CameraCoach({ interviewId, questionIndex, question, active }: { 
       setStatus('live');
       void purgeExpired().catch(() => {});
       loadLandmarker().then(l => { landmarker.current = l; setTips('ready'); }).catch(() => setTips('unavailable'));
+      loadDetector().then(d => { detector.current = d; }).catch(() => { /* object alerts unavailable; face alerts still work */ });
     } catch {
       setStatus('error'); setMessage('The camera could not be started. Check that this site may use it, or keep answering without it.');
     }
@@ -106,14 +129,30 @@ export function CameraCoach({ interviewId, questionIndex, question, active }: { 
   // Framing analysis about five times a second.
   useEffect(() => {
     if (status !== 'live') return;
-    let raf = 0, last = 0;
+    let raf = 0, last = 0, lastObjects = 0;
+    const raise = (alerts: { kind: AlertKind; text: string }[]) => {
+      if (!alerts.length) return;
+      const a = alerts[alerts.length - 1];
+      setAlert({ ...a, at: Date.now() });
+      if (soundRef.current) beep(a.kind);
+    };
     const loop = (t: number) => {
       raf = requestAnimationFrame(loop);
       const v = video.current;
       if (!v || !landmarker.current || t - last < 200 || v.readyState < 2 || !v.videoWidth) return;
       last = t;
       const result = landmarker.current.detectForVideo(v, t);
-      const points = result.faceLandmarks?.[0] ?? null;
+      const faces = result.faceLandmarks ?? [];
+      const points = faces[0] ?? null;
+      raise(tracker.current.faces(faces.length, Date.now()));
+      // Objects about once a second: detection costs more than face landmarks.
+      if (detector.current && t - lastObjects >= 1000) {
+        lastObjects = t;
+        try {
+          const found = detector.current.detectForVideo(v, t).detections.map(d => ({ label: d.categories[0]?.categoryName ?? '', score: d.categories[0]?.score ?? 0 }));
+          raise(tracker.current.objects(found, Date.now()));
+        } catch { /* a skipped frame */ }
+      }
       const c = canvas.current ??= document.createElement('canvas');
       c.width = 64; c.height = 48;
       const ctx = c.getContext('2d', { willReadFrequently: true });
@@ -136,7 +175,11 @@ export function CameraCoach({ interviewId, questionIndex, question, active }: { 
     return () => cancelAnimationFrame(raf);
   }, [status]);
 
+  // An alert stays on screen for four seconds after it last sounded.
+  useEffect(() => { if (!alert) return; const t = setTimeout(() => setAlert(null), 4000); return () => clearTimeout(t); }, [alert]);
+
   function toggle(next: boolean) {
+    if (next) primeAudio(); // browsers allow sound only after a click
     setPref('camera', next); setOn(next);
     sendFeatureEvent('video_review', next ? 'enabled' : 'disabled');
     if (!next) stopAll();
@@ -144,7 +187,7 @@ export function CameraCoach({ interviewId, questionIndex, question, active }: { 
 
   if (!on) return <section className="card camera-card" aria-label="Camera practice">
     <h3><Camera size={16}/> Camera practice <span className="optional-tag">Optional</span></h3>
-    <p>See yourself as an interviewer would, with tips on framing, eye line and lighting, and record each answer to watch afterwards.</p>
+    <p>See yourself as an interviewer would, with tips on framing, eye line and lighting, and record each answer to watch afterwards. Like an online interview’s checks, it beeps if another face, a phone or other object comes into view, or your face leaves the frame.</p>
     <p className="camera-privacy"><ShieldCheck size={14}/> Video stays on this device and is deleted after {RETENTION_DAYS} days. Nothing is uploaded, and expressions or emotions are never analysed.</p>
     <button type="button" className="button secondary" onClick={() => toggle(true)}><Camera size={15}/> Turn on camera</button>
   </section>;
@@ -152,6 +195,7 @@ export function CameraCoach({ interviewId, questionIndex, question, active }: { 
   return <section className="card camera-card" aria-label="Camera practice">
     <h3><Camera size={16}/> Camera practice {recording && <span className="rec-dot" role="status"><CircleDot size={12}/> Recording on this device</span>}</h3>
     <div className="self-view"><video ref={video} muted playsInline autoPlay aria-label="Your camera preview"/>
+      {alert && <p className={`proctor-alert ${alert.kind}`} role="alert" data-testid="proctor-alert">{alert.text}</p>}
       {status === 'live' && tips === 'ready' && <p className={`framing-tip ${tip ? 'warn' : 'ok'}`} role="status" aria-live="polite" data-testid="framing-tip">{tip ?? 'Framing looks good.'}</p>}
       {status === 'live' && tips === 'loading' && <p className="framing-tip" role="status">Loading framing tips…</p>}
       {status === 'starting' && <p className="framing-tip" role="status">Starting the camera…</p>}
@@ -159,6 +203,9 @@ export function CameraCoach({ interviewId, questionIndex, question, active }: { 
     {tips === 'unavailable' && status === 'live' && <p className="muted">Framing tips are not available in this browser; your answers are still recorded for review.</p>}
     {message && <div className="alert warning" role="alert">{message}</div>}
     <p className="camera-privacy"><ShieldCheck size={14}/> Kept only in this browser for {RETENTION_DAYS} days. Watch or delete recordings on the Results page.</p>
-    <button type="button" className="button secondary" onClick={() => toggle(false)}><CameraOff size={15}/> Turn off camera</button>
+    <div className="camera-controls">
+      <label className="check-row"><input type="checkbox" checked={sound} onChange={e => { primeAudio(); setPref('sound', e.target.checked); setSound(e.target.checked); }}/> Sound alerts</label>
+      <button type="button" className="button secondary" onClick={() => toggle(false)}><CameraOff size={15}/> Turn off camera</button>
+    </div>
   </section>;
 }

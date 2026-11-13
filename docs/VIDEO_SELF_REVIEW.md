@@ -53,6 +53,30 @@ Recording:
   advice for any issue present in at least 30% of frames. Eye contact below 50% also gets advice, because
   looking at the screen is normal.
 
+### Practice integrity alerts
+
+Like the checks some online interviews run, camera practice beeps and shows a red notice when:
+
+| Alert | Condition |
+|---|---|
+| Another face, or another person | Two or more faces for half a second (Face Landmarker now looks for up to three), or two people seen by the object detector |
+| Face out of view | No face for 2 seconds |
+| A phone | Seen in two object checks in a row (about two seconds) with a confidence of at least 0.45 |
+| A book, notes, a second screen or another device | Seen in two object checks in a row with a confidence of at least 0.5. The labels watched are `book`, `laptop`, `tv` and `remote`. |
+
+How it works:
+- **Object detection** uses MediaPipe Object Detector with EfficientDet-Lite0 (int8, Apache-2.0, COCO labels),
+  served by the app as `client/public/mediapipe/efficientdet_lite0.tflite`: 4,602,795 bytes, SHA-256
+  `0720bf247bd76e6594ea28fa9c6f7c5242be774818997dbbeffc4da460c723bb`. It runs about once a second, alongside
+  the face check five times a second.
+- **Sound** is a short tone from Web Audio, with a different pattern for objects. A continuing alert repeats
+  at most every 8 seconds. **Sound alerts** can be switched off on the camera panel, per device.
+- **Counts.** Each answer's recording stores how many times each alert started, and Results shows them.
+
+Like the rest of camera practice, this runs only in the browser. Nothing is uploaded, nobody is identified,
+and the alerts never affect scores or reach a placement office. The decision rules are in
+`client/src/lib/proctor.ts` and tested in `server/tests/proctor.test.ts`.
+
 ### Results (`SelfReview`)
 
 The Results page lists this device's recordings for the interview, with the question, length, size, framing
@@ -81,7 +105,7 @@ The avatar is switched on per device with **Interviewer avatar** under the quest
 | Where is it stored? | IndexedDB in the browser (`interviewiq-self-review`), per device and per browser profile. |
 | Is anything sent to Interview IQ? | Only optional-feature signals: feature (`video_review` or `avatar`), event (`enabled`, `disabled` or `rating`), a 1–5 rating, the account and the time (`feature_events`, kept about 13 months). No video, audio, images, landmarks or framing figures. |
 | Is anything sent to third parties? | No. MediaPipe and its model are served by the app. MediaPipe 1.1.1 has built-in usage logging to `odml.pa.googleapis.com`, which is switched off in code (`silenceUsageLogging`). The content-security policy also blocks any such request, because `connect-src` falls back to `'self'`. The browser test fails if any request leaves the app. |
-| What is inferred? | Face position and size, head tilt and turn, iris position in the eye, and brightness. Expressions (blendshapes), emotion, personality, attractiveness, identity, age, gender and ethnicity are never inferred. |
+| What is inferred? | Face position and size, head tilt and turn, iris position in the eye, and brightness; how many faces are in view; and whether a phone, book, screen, device or second person is in view (for the practice alerts). Expressions (blendshapes), emotion, personality, attractiveness, identity, age, gender and ethnicity are never inferred, and nobody is recognised. |
 | Does it affect scores? | No. Framing advice is shown only to the candidate and is not part of any score or placement report. |
 | Who can see recordings? | Only someone using the same browser profile on that device. |
 | Retention | 14 days, purged whenever the feature or the Results page is used. Recordings can also be deleted one at a time or all at once. |

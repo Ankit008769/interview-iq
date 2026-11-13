@@ -46,6 +46,21 @@ calls, plus `GET /health`. Audio is decoded in memory and never written or logge
   `TRANSCRIPTION_MODEL=small` in `server/.env`. `TRANSCRIPTION_BASE_URL` defaults to
   `http://127.0.0.1:8000/v1` and must be on localhost; `TRANSCRIPTION_TIMEOUT_MS`
   defaults to 300000 for local CPU.
+- Windows example (13 November 2026), with the environment and model kept outside the repo:
+
+  ```
+  python -m venv E:\InterviewIQ\tools\whisper-venv
+  E:\InterviewIQ\tools\whisper-venv\Scripts\python -m pip install -r deploy\whisper\requirements.txt
+  cd deploy\whisper
+  set WHISPER_MODELS_DIR=E:\InterviewIQ\tools\whisper-models
+  set WHISPER_BEAM=5
+  E:\InterviewIQ\tools\whisper-venv\Scripts\python -m uvicorn server:app --host 127.0.0.1 --port 8000
+  ```
+
+  `WHISPER_BEAM=5` is slower than the default of 1, but more accurate for accented speech.
+- **Language hint.** The transcriber is told the interview's language: `en` for English, and `hi`, `ta`,
+  `te`, `bn` or `mr`. Only mixed Hinglish is left to auto-detection. Without a hint, Whisper guesses from the
+  first seconds and could write an Indian-accented English answer in Hindi.
 - Cloud Run: `deploy/whisper/Dockerfile` bakes the model in; it runs as a third
   container (`whisper`, 1 vCPU, 2 GiB, startup probe `GET /health` on port 8000), so the
   app (1) and Ollama (6) keep their CPUs within 8 vCPU per instance. Cloud Run only accepts

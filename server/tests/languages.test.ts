@@ -95,14 +95,18 @@ it('keeps practice interviews in English and rejects unknown languages', async (
   expect(calls).toHaveLength(0);
 });
 
-it('hints Hindi to the transcriber only for Hindi interviews', async () => {
+it('tells the transcriber the interview language, leaving only mixed Hinglish to auto-detect', async () => {
   const webm = Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(4096, 7)]);
   const hindi = (await start({ language: 'hi' }).expect(201)).body.interview;
   await owner.post(`/api/interviews/${hindi._id}/transcribe`).set('Content-Type', 'audio/webm').send(webm).expect(200);
   const hinglish = (await start({ language: 'hinglish' }).expect(201)).body.interview;
   await owner.post(`/api/interviews/${hinglish._id}/transcribe`).set('Content-Type', 'audio/webm').send(webm).expect(200);
+  // English answers in an Indian accent must not be guessed as Hindi.
+  const english = (await start({}).expect(201)).body.interview;
+  await owner.post(`/api/interviews/${english._id}/transcribe`).set('Content-Type', 'audio/webm').send(webm).expect(200);
   expect(transcriptions[0]).toMatch(/name="language"\r\n\r\nhi\r\n/);
   expect(transcriptions[1]).not.toMatch(/name="language"/);
+  expect(transcriptions[2]).toMatch(/name="language"\r\n\r\nen\r\n/);
 });
 
 it('offers Tamil, Telugu, Bengali and Marathi for HR and behavioural rounds only, with their own instruction and transcriber hint', async () => {

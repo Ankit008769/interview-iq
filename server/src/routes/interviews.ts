@@ -80,6 +80,9 @@ const warmUpLimit: RequestHandler = async (req, _res, next) => {
 };
 router.post('/warmup', warmUpLimit, (_req, res) => { res.status(202).json({ started: warmLocalModels() }); });
 // Turns one spoken answer into text for the candidate to review and edit; the recording is never stored.
+// The transcriber gets the interview's language: without a hint, Whisper guesses from the first seconds and can
+// write an Indian-accented English answer in Hindi. Hinglish mixes languages, so it is left to auto-detect.
+export const transcriptionLanguage = (language?: string) => (!language || language === 'en' ? 'en' : language === 'hinglish' ? undefined : language);
 router.post('/:id/transcribe', aiLimit, audioBody, async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) { res.status(404).json({ error: 'Interview not found.' }); return; }
@@ -101,7 +104,7 @@ router.post('/:id/transcribe', aiLimit, audioBody, async (req, res, next) => {
     }
     await consumeAIQuota(userId(req));
     let text: string;
-    try { ({ text } = await transcribeAudio(audio, type, { userId: userId(req), interviewId: doc.id }, doc.language === 'hinglish' || doc.language === 'en' ? undefined : doc.language)); }
+    try { ({ text } = await transcribeAudio(audio, type, { userId: userId(req), interviewId: doc.id }, transcriptionLanguage(doc.language))); }
     catch (err) {
       if (err instanceof ConsentRequiredError) throw err;
       operationalEvent('transcription_failure', 'WARNING');

@@ -1,4 +1,5 @@
 import type { FramingSummary } from './framing';
+import type { AlertSummary } from './proctor';
 
 // Video self-review recordings (roadmap D4) are kept only in this browser's IndexedDB. They are never
 // uploaded, are deleted after RETENTION_DAYS, and can be deleted at any time from Results or Account.
@@ -10,6 +11,7 @@ export interface Recording {
   interviewId: string; questionIndex: number; question: string;
   blob: Blob; mimeType: string; durationMs: number; createdAt: number;
   framing: FramingSummary;
+  alerts?: AlertSummary; // practice integrity alerts during this answer (older recordings have none)
 }
 export type RecordingInfo = Omit<Recording, 'blob'> & { bytes: number };
 
@@ -56,6 +58,10 @@ export async function purgeExpired(now = Date.now()) {
 }
 
 // Per-device preferences, not account settings.
-const PREFS = { camera: 'iq.selfReview.camera', avatar: 'iq.avatar' } as const;
-export function getPref(name: keyof typeof PREFS) { try { return localStorage.getItem(PREFS[name]) === 'on'; } catch { return false; } }
+const PREFS = { camera: 'iq.selfReview.camera', avatar: 'iq.avatar', sound: 'iq.selfReview.sound' } as const;
+// Sound alerts are on unless switched off; the other features are off unless switched on.
+const DEFAULT_ON = new Set<keyof typeof PREFS>(['sound']);
+export function getPref(name: keyof typeof PREFS) {
+  try { const v = localStorage.getItem(PREFS[name]); return v === null ? DEFAULT_ON.has(name) : v === 'on'; } catch { return DEFAULT_ON.has(name); }
+}
 export function setPref(name: keyof typeof PREFS, on: boolean) { try { localStorage.setItem(PREFS[name], on ? 'on' : 'off'); } catch { /* private mode */ } }

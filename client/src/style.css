@@ -329,3 +329,9 @@
 .public-passport{max-width:720px}.public-passport h1{display:flex;align-items:center;gap:10px;font-size:22px}
 .passport-verdict{display:flex;gap:8px;align-items:center;font-weight:700;padding:10px 12px;border-radius:10px}.passport-verdict.ok{background:#1f4a3d5e;border:1px solid #3f8f72;color:#bdf3dc}.passport-verdict.bad{background:#5727355e;border:1px solid #a65767;color:#ffc0cc}
 @media(max-width:640px){.passport-record{grid-template-columns:1fr}.passport-record dt{margin-top:6px}}
+/* Practice integrity alerts (camera practice) */
+.proctor-alert{position:absolute;left:8px;right:8px;top:8px;margin:0;padding:7px 10px;border-radius:9px;font-size:12px!important;font-weight:800;background:#5a1f2bd9;border:1px solid #d0566c;color:#ffd6de!important;animation:proctor-pulse .6s ease-out}
+@keyframes proctor-pulse{from{transform:scale(1.04);opacity:.6}to{transform:scale(1);opacity:1}}
+@media (prefers-reduced-motion:reduce){.proctor-alert{animation:none}}
+.camera-controls{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.proctor-summary{font-size:12px;color:#ffc0cc;margin:8px 0 0}
