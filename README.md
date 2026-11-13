@@ -189,8 +189,8 @@ See [flow and acceptance checks](docs/FLOW_AND_ROADMAP.md),
 [Phase 0 operations](docs/PHASE_ZERO_OPERATIONS.md).
 
 Account settings now support session revocation, password change/recovery, email
-verification, data export/deletion and 30-day AI usage. Email delivery is disabled
-until a provider is configured. See [account behavior and migration](docs/ACCOUNT_AND_USAGE.md)
+verification, data export/deletion and 30-day AI usage. Email is sent over SMTP (a free Gmail app password
+works) once `SMTP_*` is set in `server/.env`. See [account behavior and migration](docs/ACCOUNT_AND_USAGE.md)
 and the [verified Google Cloud backup/restore runbook](docs/BACKUP_RESTORE.md).
 
 AI provider permission and cloud alert configuration are documented in [monitoring and consent](docs/MONITORING_AND_CONSENT.md). Practice remains available without AI permission; application email remains disabled.

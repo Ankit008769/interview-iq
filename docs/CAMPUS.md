@@ -56,9 +56,9 @@ must tick "I agree" before joining.
 
   The invited person sees the invitation on their Campus page after signing in with that email. **They can
   accept only once their email address is verified,** because an invitation can carry a coordinator role.
-  While the app has no email provider configured (see [account behaviour](ACCOUNT_AND_USAGE.md)), nobody
-  can verify an address, so use join codes. Imported roll numbers and names wait in the invitation until
-  then.
+  Verifying needs account email to be set up, for example with a free Gmail app password (see [account
+  email](ACCOUNT_AND_USAGE.md#account-email)). Until then, use join codes. Imported roll numbers and names
+  wait in the invitation.
 
 The sharing terms read: *Your placement office will see your name, email and roll number, which of their
 assignments you finished and when, your scores on them, your overall interview scores and your readiness

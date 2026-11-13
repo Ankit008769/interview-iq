@@ -1,7 +1,8 @@
 # Account lifecycle and usage tracking
 
-Implemented 24 October 2026. Live email delivery is intentionally disabled at the
-owner's request. The account/usage release f3dd618 was deployed and live-tested on 24 October 2026.
+Implemented 24 October 2026. Email delivery (password reset and email verification) works over any SMTP
+server since 13 November 2026 and stays off until `SMTP_HOST`, `SMTP_USER` and `SMTP_PASS` are set (see
+"Account email" below). The account/usage release f3dd618 was deployed and live-tested on 24 October 2026.
 The backup schedule is active in Google Cloud. Subsequent consent and monitoring
 behavior is documented in MONITORING_AND_CONSENT.md.
 
@@ -108,3 +109,38 @@ successful/failed usage, and mobile layout. Successful verification/reset browse
 flows and reused/invalid links are covered. Production mail delivery is not tested
 because it remains disabled. Cloud MongoDB 7 restoration is separately verified;
 the local regression suites use MongoDB 8.2.6.
+
+## Account email
+
+`server/src/services/accountMail.ts` sends password-reset links (valid 30 minutes) and email-verification
+links (valid 60 minutes) over SMTP with nodemailer. Verifying an email also lets a person accept campus
+invitations ([CAMPUS.md](CAMPUS.md)).
+
+The free option is a Gmail account with an app password:
+1. In the Google Account, open Security, turn on 2-Step Verification, then create an app password.
+2. Put the app password in `server/.env`, never in Git:
+
+   ```
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=465
+   SMTP_USER=you@gmail.com
+   SMTP_PASS=the 16-character app password
+   MAIL_FROM="Interview IQ <you@gmail.com>"
+   ```
+
+3. Set `CLIENT_ORIGIN` to the address people open, because email links point there.
+
+How it behaves:
+
+| Setting or case | Behaviour |
+|---|---|
+| Port 465 | TLS from the start |
+| Other ports | Must upgrade with STARTTLS. `SMTP_REQUIRE_TLS=false` exists only for local test servers. |
+| Links and tokens | Never logged |
+| Failed send | Removes the unused token, and the person sees "could not be sent" |
+| Unknown email on password reset | Gets the same answer as a known one, and no email is sent |
+
+Gmail limits personal accounts to a few hundred messages a day, which suits a beta.
+
+`server/tests/account-mail.test.ts` checks the settings, message escaping, and real SMTP delivery to a local
+test server. The links in the delivered emails verify the account and start a reset.

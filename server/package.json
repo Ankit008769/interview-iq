@@ -33,6 +33,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.21.0",
     "mongoose": "^8.9.5",
+    "nodemailer": "10.3.1",
     "openai": "^6.0.0",
     "ts-fsrs": "^5.4.2",
     "yauzl": "^3.4.0",
