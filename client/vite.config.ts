@@ -18,5 +18,6 @@ if (existsSync(wasm)) cpSync(wasm, wasmTarget, { recursive: true, filter: source
 
 export default defineConfig({
   plugins: [react()],
-  server: { proxy: { '/api': 'http://127.0.0.1:5000' } },
+  // The dev server forwards /api to the local API; API_PROXY_TARGET moves it off port 5000 when that is taken.
+  server: { proxy: { '/api': process.env.API_PROXY_TARGET || 'http://127.0.0.1:5000' } },
 });
