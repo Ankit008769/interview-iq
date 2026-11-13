@@ -30,3 +30,6 @@ calibration/output/
 # Copied from node_modules at build time (client/vite.config.ts).
 client/public/excalidraw-assets/
 client/public/mediapipe/wasm/
+
+# Python bytecode (deploy/whisper)
+__pycache__/
