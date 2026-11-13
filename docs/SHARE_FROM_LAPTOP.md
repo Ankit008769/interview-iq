@@ -15,12 +15,17 @@ tunnel**, which needs no Cloudflare account and no card.
 4. Start sharing from the repo root:
 
    ```
-   node deploy/share-tunnel.mjs --port 5100 --cloudflared E:\InterviewIQ\tools\cloudflared.exe
+   node deploy/share-tunnel.mjs --port 5100 --cloudflared E:\InterviewIQ\tools\cloudflared.exe --url-file E:\InterviewIQ\SHARE-LINK.txt
    ```
 
-   The script prints a link such as `https://some-words.trycloudflare.com`. Send it to the people who should
-   try the app.
+   The script prints a link such as `https://some-words.trycloudflare.com` and writes it to the
+   `--url-file`. Send it to the people who should try the app.
 5. Press Ctrl+C to stop. The link stops working at once, and the next start gets a new link.
+
+Cloudflare drops a quick-tunnel address when the connection breaks, for example when the laptop sleeps. The
+script checks the public link every minute, starting three minutes after each start. After three failed checks
+in a row, it starts a new tunnel and restarts the app for the new address. **The link then changes**, so check
+the `--url-file` for the current one.
 
 If the models are not on Ollama's default port, set `LLM_BASE_URL` first, for example
 `set LLM_BASE_URL=http://127.0.0.1:11435/v1`.
