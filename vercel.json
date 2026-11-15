@@ -1,0 +1,23 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "installCommand": "npm ci --prefix client",
+  "buildCommand": "npm run build --prefix client",
+  "outputDirectory": "client/dist",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; base-uri 'self'; font-src 'self' https: data:; form-action 'self'; frame-ancestors 'self'; img-src 'self' data:; object-src 'none'; script-src 'self' 'wasm-unsafe-eval'; script-src-attr 'none'; style-src 'self' https: 'unsafe-inline'; media-src 'self' blob:; upgrade-insecure-requests" }
+      ]
+    }
+  ],
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://interview-iq-341474411884.asia-south1.run.app/api/:path*" },
+    { "source": "/.well-known/did.json", "destination": "https://interview-iq-341474411884.asia-south1.run.app/.well-known/did.json" },
+    { "source": "/((?!api(?:/|$)|assets/|mediapipe/|excalidraw-assets/|\\.well-known/).*)", "destination": "/index.html" }
+  ]
+}

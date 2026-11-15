@@ -16,6 +16,7 @@
 .agents/
 agent-notes/
 .DS_Store
+.vercel/
 *.log
 # Calibration rater sheets and results stay local; only the item sets are versioned.
 calibration/ratings/
@@ -33,3 +34,4 @@ client/public/mediapipe/wasm/
 
 # Python bytecode (deploy/whisper)
 __pycache__/
+.vercel

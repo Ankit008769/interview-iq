@@ -6,10 +6,12 @@ import nodemailer, { type Transporter } from 'nodemailer';
 //   SMTP_HOST=smtp.gmail.com  SMTP_PORT=465  SMTP_USER=you@gmail.com  SMTP_PASS=<16-character app password>
 //   MAIL_FROM="Interview IQ <you@gmail.com>"   (optional; defaults to SMTP_USER)
 // Port 465 uses TLS from the start; other ports must upgrade with STARTTLS unless SMTP_REQUIRE_TLS=false (local
-// test servers only). Until SMTP_HOST, SMTP_USER and SMTP_PASS are set, email stays off and the app says so.
+// test servers only). Delivery requires EMAIL_DELIVERY_ENABLED=true and complete SMTP settings.
 // Links and tokens are never logged, and failures surface only as "could not be sent".
 export type MailConfig = { host: string; port: number; secure: boolean; requireTLS: boolean; user: string; pass: string; from: string };
 export function mailConfig(env: NodeJS.ProcessEnv = process.env): MailConfig | null {
+  // Explicit opt-in prevents inherited SMTP credentials from enabling delivery.
+  if (env.EMAIL_DELIVERY_ENABLED !== 'true') return null;
   const host = env.SMTP_HOST?.trim(), user = env.SMTP_USER?.trim(), pass = env.SMTP_PASS?.replace(/\s+/g, '');
   if (!host || !user || !pass) return null;
   const port = Number(env.SMTP_PORT ?? 465);

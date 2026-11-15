@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import request from 'supertest';
-import { accountEmail, emailDeliveryAvailable, mailConfig } from '../src/services/accountMail.js';
+import { accountEmail, emailDeliveryAvailable, mailConfig, sendAccountLink } from '../src/services/accountMail.js';
 
 process.env.JWT_SECRET = 'account-mail-test-secret-longer-than-thirty-two-characters';
 process.env.CLIENT_ORIGIN = 'http://127.0.0.1:5173';
@@ -45,14 +45,29 @@ function smtpServer(received: Received[]): Server {
 }
 
 describe('mail settings', () => {
+  it('blocks delivery even with SMTP credentials when explicitly disabled', async () => {
+    vi.stubEnv('EMAIL_DELIVERY_ENABLED', 'false');
+    vi.stubEnv('SMTP_HOST', 'smtp.example.test');
+    vi.stubEnv('SMTP_USER', 'sender@example.test');
+    vi.stubEnv('SMTP_PASS', 'test-only');
+    try {
+      expect(emailDeliveryAvailable()).toBe(false);
+      expect((await request(app).get('/api/auth/capabilities')).body.emailDelivery).toBe(false);
+      await expect(sendAccountLink('reader@example.test', 'reset', 'https://example.test/reset'))
+        .rejects.toThrow('Account email delivery is not configured.');
+    } finally { vi.unstubAllEnvs(); }
+  });
   it('reads Gmail-style SMTP settings and stays off until they are complete', () => {
     expect(mailConfig({})).toBeNull();
-    expect(mailConfig({ SMTP_HOST: 'smtp.gmail.com', SMTP_USER: 'me@gmail.com' })).toBeNull();
-    expect(mailConfig({ SMTP_HOST: 'smtp.gmail.com', SMTP_USER: 'me@gmail.com', SMTP_PASS: 'abcd efgh ijkl mnop' }))
+    for (const flag of [undefined, 'false', 'TRUE']) {
+      expect(mailConfig({ EMAIL_DELIVERY_ENABLED: flag, SMTP_HOST: 'smtp.test', SMTP_USER: 'u', SMTP_PASS: 'p' })).toBeNull();
+    }
+    expect(mailConfig({ EMAIL_DELIVERY_ENABLED: 'true', SMTP_HOST: 'smtp.gmail.com', SMTP_USER: 'me@gmail.com' })).toBeNull();
+    expect(mailConfig({ EMAIL_DELIVERY_ENABLED: 'true', SMTP_HOST: 'smtp.gmail.com', SMTP_USER: 'me@gmail.com', SMTP_PASS: 'abcd efgh ijkl mnop' }))
       .toEqual({ host: 'smtp.gmail.com', port: 465, secure: true, requireTLS: false, user: 'me@gmail.com', pass: 'abcdefghijklmnop', from: 'me@gmail.com' });
-    expect(mailConfig({ SMTP_HOST: 'smtp.example.test', SMTP_PORT: '587', SMTP_USER: 'u', SMTP_PASS: 'p', MAIL_FROM: 'Interview IQ <u@example.test>' }))
+    expect(mailConfig({ EMAIL_DELIVERY_ENABLED: 'true', SMTP_HOST: 'smtp.example.test', SMTP_PORT: '587', SMTP_USER: 'u', SMTP_PASS: 'p', MAIL_FROM: 'Interview IQ <u@example.test>' }))
       .toMatchObject({ port: 587, secure: false, requireTLS: true, from: 'Interview IQ <u@example.test>' });
-    expect(mailConfig({ SMTP_HOST: 'h', SMTP_PORT: 'nope', SMTP_USER: 'u', SMTP_PASS: 'p' })).toBeNull();
+    expect(mailConfig({ EMAIL_DELIVERY_ENABLED: 'true', SMTP_HOST: 'h', SMTP_PORT: 'nope', SMTP_USER: 'u', SMTP_PASS: 'p' })).toBeNull();
   });
   it('writes plain-text and HTML messages with the link escaped', () => {
     const m = accountEmail('reset', 'https://iq.test/account/recovery#token=a"<b>');
@@ -72,7 +87,7 @@ describe('account email over SMTP', () => {
   beforeAll(async () => {
     smtp = smtpServer(received);
     await new Promise<void>(r => smtp.listen(0, '127.0.0.1', r));
-    vi.stubEnv('SMTP_HOST', '127.0.0.1'); vi.stubEnv('SMTP_PORT', String((smtp.address() as AddressInfo).port));
+    vi.stubEnv('EMAIL_DELIVERY_ENABLED', 'true'); vi.stubEnv('SMTP_HOST', '127.0.0.1'); vi.stubEnv('SMTP_PORT', String((smtp.address() as AddressInfo).port));
     vi.stubEnv('SMTP_SECURE', 'false'); vi.stubEnv('SMTP_REQUIRE_TLS', 'false');
     vi.stubEnv('SMTP_USER', 'sender@example.test'); vi.stubEnv('SMTP_PASS', 'app-password'); vi.stubEnv('MAIL_FROM', 'Interview IQ <sender@example.test>');
     mongo = await MongoMemoryServer.create(); await mongoose.connect(mongo.getUri());
